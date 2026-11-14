@@ -19,6 +19,8 @@ class QQmlEngine;
 
 namespace dex {
 
+class LlamaMathTranslator;
+
 /// Presentation-facing state machine. QML binds to its properties; every
 /// decision (normalisation, maths, routing) happens in C++.
 class AppController : public QObject
@@ -130,6 +132,7 @@ private:
     Config m_config;
     RuleRouter &m_router;
     CommandEngine m_engine;
+    std::unique_ptr<LlamaMathTranslator> m_mathTranslator;
     std::unique_ptr<ITranscriptProvider> m_provider;
     QTimer m_autoHideTimer;
 

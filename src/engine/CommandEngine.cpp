@@ -1,11 +1,22 @@
 #include "engine/CommandEngine.hpp"
 
+#include "engine/LlamaMathTranslator.hpp"
 #include "engine/MathEvaluator.hpp"
+#include "engine/SymbolicDifferentiator.hpp"
 #include "engine/TextNormalizer.hpp"
 
+#include <QDebug>
 #include <QRegularExpression>
 
 namespace dex {
+namespace {
+
+QString derivativeDisplay(const QString &variable, const QString &expression)
+{
+    return QStringLiteral("d/d%1 (%2)").arg(variable, expression);
+}
+
+} // namespace
 
 CommandEngine::CommandEngine(RuleRouter &router, bool confirmByDefault)
     : m_router(router)
@@ -16,7 +27,7 @@ CommandEngine::CommandEngine(RuleRouter &router, bool confirmByDefault)
 QString CommandEngine::displayExpression(const QString &normalized)
 {
     static const QRegularExpression prefix(
-        QStringLiteral(R"(^(?:calculate|what is|solve)\s+)"));
+        QStringLiteral(R"(^(?:calculate|what is|solve|evaluate)\s+)"));
     const QString text = normalized.trimmed();
     const auto match = prefix.match(text);
     if (match.hasMatch())
@@ -31,16 +42,71 @@ CommandEngine::Outcome CommandEngine::process(const QString &rawText) const
     if (outcome.normalized.isEmpty())
         return outcome;
 
-    if (const auto value = MathEvaluator::evaluateUtterance(outcome.normalized)) {
-        outcome.kind = OutcomeKind::Math;
-        outcome.expression = displayExpression(outcome.normalized);
-        outcome.result = MathEvaluator::format(*value);
-        return outcome;
-    }
-
+    // --- 1. Deterministic desktop fast path (0 ms, no model) ----------------
     if (const auto route = m_router.route(outcome.normalized, m_confirmByDefault)) {
         outcome.route = *route;
         outcome.kind = route->confirm ? OutcomeKind::Confirmation : OutcomeKind::Action;
+        return outcome;
+    }
+
+    const auto derivativeRequest = TextNormalizer::derivative(rawText);
+    const bool wantsMath = derivativeRequest.has_value()
+        || (MathEvaluator::isMathTrigger(rawText) && MathEvaluator::hasMathContent(rawText));
+    if (!wantsMath)
+        return outcome;
+
+    // --- 2. Optional SLM translation --------------------------------------
+    if (m_translator && m_translator->available()) {
+        QString error;
+        if (const auto command = m_translator->translate(rawText, &error)) {
+            outcome.slmMode = command->mode;
+            outcome.slmExpression = command->expr;
+
+            if (command->mode == QStringLiteral("eval")) {
+                if (const auto value = MathEvaluator::evaluate(command->expr)) {
+                    outcome.kind = OutcomeKind::Math;
+                    outcome.usedSlm = true;
+                    outcome.expression = command->expr;
+                    outcome.result = value->format();
+                    return outcome;
+                }
+            } else if (command->mode == QStringLiteral("diff")) {
+                if (const auto derivative =
+                        SymbolicDifferentiator::differentiate(command->expr, command->var)) {
+                    outcome.kind = OutcomeKind::Math;
+                    outcome.usedSlm = true;
+                    outcome.expression = derivativeDisplay(command->var, command->expr);
+                    outcome.result = *derivative;
+                    return outcome;
+                }
+            }
+
+            qWarning().noquote()
+                << QStringLiteral("Maths SLM returned an unusable command (%1: %2); "
+                                  "falling back to the deterministic pipeline.")
+                       .arg(command->mode, command->expr);
+        } else {
+            qWarning().noquote()
+                << QStringLiteral("Maths SLM unavailable: %1").arg(error);
+        }
+    }
+
+    // --- 3. Deterministic fallback ----------------------------------------
+    if (derivativeRequest) {
+        if (const auto derivative = SymbolicDifferentiator::differentiate(
+                derivativeRequest->expression, derivativeRequest->variable)) {
+            outcome.kind = OutcomeKind::Math;
+            outcome.expression =
+                derivativeDisplay(derivativeRequest->variable, derivativeRequest->expression);
+            outcome.result = *derivative;
+            return outcome;
+        }
+    }
+
+    if (const auto value = MathEvaluator::evaluateUtterance(outcome.normalized)) {
+        outcome.kind = OutcomeKind::Math;
+        outcome.expression = displayExpression(outcome.normalized);
+        outcome.result = value->format();
         return outcome;
     }
 

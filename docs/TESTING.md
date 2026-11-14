@@ -1,39 +1,58 @@
 # Testing & Stub Verification Guide
 
 ## 1. Automated Unit Tests (`QtTest`)
-Run via `ctest --test-dir build --output-on-failure` (9 suites):
+Run via `ctest --test-dir build --output-on-failure -LE live` (8 suites; the
+9th, `tst_live_input`, carries the `live` label and is described in §5):
 
 1. `tst_normalizer`:
    - `"Hey Dex, search for Arch Linux Wiki."` → `"search for arch linux wiki"`
    - `"minus 2 into l.n.e"` → `"-2 * ln(e)"`
    - `"3.14 plus 2.5"` → `"3.14 + 2.5"`
-2. `tst_math`:
+2. `tst_math` (21 cases):
    - `"minus 2 multiplied by l.n.e"` → `-2.0`
    - `"minus 2 into l.n.e"` → `-2.0`
    - `"10 plus 5 times 2"` → `20.0`
    - `"sqrt 16 plus 2 power 3"` → `12.0`
-   - Division by zero → `std::nullopt`
+   - `"minus. is zero point eight"` → `-0.8`, `"sigma function of ln2"` → `0.666…`
+   - ML helpers: `sigmoid(ln(2))` → `0.666667`, `relu(-2)` → `0`, `exp(0) + relu(3)` → `4`
+   - `softmax([1, 0.1, -3])` → `[0.7018, 0.2853, 0.0128]` (vector `MathResult`)
+   - `SymbolicDifferentiator`: `0.5 * (y_hat - y)^2` wrt `y_hat` → `y_hat - y`,
+     `3*x^2 + 2*x` → `2 + 6 * x`, `sigmoid(x)` → `sigmoid(x) * (1 - sigmoid(x))`,
+     `x^2` wrt `t` → `0`
+   - Division by zero, modulo by zero, trailing operators, and desktop text → `std::nullopt`
 3. `tst_router`:
    - `"search C++20 concepts"` → matches `web_search`, URL encodes `C%2B%2B20%20concepts`
    - `"launch kitty"` → matches `launch_app`, program `kitty`
    - `"workspace 4"` → matches `hypr_workspace`, args `["dispatch", "workspace", "4"]`
 4. `tst_config`:
-   - shipped `config/config.toml` parses with the Phase 2 `[asr]` defaults
-   - missing keys keep defaults (`provider = "sherpa"`, `model_profile = "moonshine"`)
-   - `~` expansion, clamping (`threads` 1–16, `vad_threshold` 0.05–0.95), and
-     broken TOML rejection
-5. `tst_engine`: end-to-end normalise → math/route → dispatch decisions.
+   - shipped `config/config.toml` parses with the single-shot `[asr]` and
+     `[math_slm]` defaults
+   - missing keys keep defaults (`provider = "sherpa"`,
+     `math_slm.enabled = true`, `idle_unload_sec = 60`)
+   - `[math_slm]` overrides: `enabled`, `~` expansion, `threads` clamped to 16,
+     `idle_unload_sec = 0`
+   - clamping (`threads` 1–16, `vad_threshold` 0.05–0.95) and broken TOML rejection
+5. `tst_engine`: end-to-end normalise → route → maths/calculus decisions.
+   - `spokenMath` rows run with **no translator** and assert `usedSlm == false`,
+     proving the deterministic fallback.
+   - `nonMathTrigger` rows ("turn the power off", "what is the weather") assert
+     `OutcomeKind::None` with `usedSlm == false`, both with and without a
+     translator attached.
+   - `slmTranslatesSpeech` rows use a real `LlamaMathTranslator` when the GGUF
+     exists and assert `usedSlm`, the JSON mode and the final result; the whole
+     data set soft-skips when the GGUF is absent or the build has no llama.cpp.
 6. `tst_ipc`: control commands, `PARTIAL:`/`FINAL:`, `SET_MODEL:`, and
    buffered/partial lines.
 7. `tst_provider`:
-   - factory defaults/`--stub` override and unknown-profile fallback
-   - legacy alias canonicalisation (`balanced` → `moonshine`)
-   - Moonshine and Parakeet bundle discovery incl. required files
+   - factory defaults/`--stub` override and unknown-provider fallback
+   - canonical profile aliases (`parakeet-v2` → `parakeet`, `stub` → `stub`)
+   - Parakeet bundle discovery (`encoder.int8.onnx`, `decoder.int8.onnx`,
+     `joiner.int8.onnx`, `tokens.txt`, `silero_vad.onnx`)
    - missing VAD/joiner rejection, stub creation, missing-model failure
 8. `tst_audio`: SPSC ring-buffer round-trip, wrap-around, overflow drop count,
    and reset.
 9. `tst_live_input` (labelled `live`): end-to-end microphone test through the
-   production `AudioCapture` → Silero VAD → sherpa-onnx path using the system
+   production `AudioCapture` → Silero VAD → single-shot Parakeet path using the system
    default input. It has no fixed input to assert on, so it soft-skips when
    there is no input device, the model bundle is missing, or no speech arrives
    within the timeout. See §5.
@@ -55,7 +74,7 @@ Start `./build/dex` and send commands over `/run/user/$(id -u)/dex.sock`:
 
 - `printf "SHOW\n" | socat - UNIX-CONNECT:/run/user/$(id -u)/dex.sock`
 - `printf "SET_MODEL:parakeet\n" | socat - UNIX-CONNECT:/run/user/$(id -u)/dex.sock`
-- `printf "SET_MODEL:moonshine\n" | socat - UNIX-CONNECT:/run/user/$(id -u)/dex.sock`
+- `printf "SET_MODEL:stub\n" | socat - UNIX-CONNECT:/run/user/$(id -u)/dex.sock`
 - `printf "PARTIAL:minus 2 into\n" | socat - UNIX-CONNECT:/run/user/$(id -u)/dex.sock`
 - `printf "FINAL:minus 2 into l.n.e\n" | socat - UNIX-CONNECT:/run/user/$(id -u)/dex.sock`
 - `printf "FINAL:search hyprland layer shell\n" | socat - UNIX-CONNECT:/run/user/$(id -u)/dex.sock`
@@ -108,35 +127,48 @@ Notes:
   on the last word; finals use the full VAD segment including trailing silence.
 
 ## 5. Live Microphone Test (`tst_live_input`)
-The fastest way to see the real pipeline transcribe: run the test and talk.
+The fastest way to see the real pipeline transcribe and evaluate: run the test
+and talk.
 
 ```sh
 ./build/tests/tst_live_input
 ```
 
 It opens the **system default input**, loads the configured bundle, and streams
-partials and finals to stdout as they are decoded:
+partials, finals and engine results to stdout as they are decoded. The default
+`engine` mode also pushes each final through the production `CommandEngine`
+(including the on-demand maths SLM):
 
 ```
-Live ASR test: input='Usb Audio Device Mono' model='moonshine'
+Live ASR test: input='Usb Audio Device Mono' model='moonshine' mode='engine'
 Listening - speak 1 utterance(s) now (25 s timeout)...
-  [partial] search arch linux wiki
-  [final]   search arch linux wiki
-Captured 1 utterance(s): search arch linux wiki
+  [partial] minus 2 into
+  [final]   minus 2 into ln e
+  [slm]     {"mode":"eval","expr":"-2*ln(e)"}
+  [result]  -2 * ln(e) = -2
+Captured 1 utterance(s): minus 2 into ln e
 ```
 
 Environment overrides:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
+| `DEX_TEST_MODE` | `engine` | `asr` (raw transcripts) or `engine` (also evaluate) |
 | `DEX_TEST_PROFILE` | `moonshine` | `moonshine` or `parakeet` |
 | `DEX_TEST_MODEL_DIR` | `defaultModelDir()` | model base directory |
 | `DEX_TEST_SPEECH_TIMEOUT_MS` | `25000` | how long to wait for speech |
 | `DEX_TEST_UTTERANCES` | `1` | how many finals to collect |
 | `DEX_TEST_EXPECT` | unset | substring the joined transcript must contain |
+| `DEX_TEST_EXPECT_RESULT` | unset | substring the joined engine results must contain |
+
+Example: check a spoken sigmoid without any typing.
+
+```sh
+DEX_TEST_UTTERANCES=2 DEX_TEST_EXPECT_RESULT='0.666667' ./build/tests/tst_live_input
+```
 
 Add `QT_LOGGING_RULES='dex.asr.debug=true'` to also get the `dex.asr` category
-logs in the failure output.
+logs, or `dex.slm.debug=true` for the SLM's raw JSON, in the failure output.
 
 Behaviour:
 - Skips (not fails) when there is no default input device, the model bundle is
@@ -145,9 +177,11 @@ Behaviour:
 - Also skips immediately when stdout is not a terminal (e.g. under `ctest`), so
   a normal test run is not delayed by the speech timeout. Set
   `DEX_TEST_SPEECH_TIMEOUT_MS` to force it in non-interactive runs.
+- `engine` mode soft-skips the SLM checks when the GGUF is absent; the
+  deterministic path is still exercised.
 - Fails on real regressions: device open errors, a provider that never reaches
-  `Listening`, worker errors, or a transcript that does not contain
-  `DEX_TEST_EXPECT`.
+  `Listening`, worker errors, or a transcript/result that does not contain
+  `DEX_TEST_EXPECT` / `DEX_TEST_EXPECT_RESULT`.
 
 Because it needs hardware and speech, it carries the `live` CTest label:
 
@@ -158,3 +192,32 @@ ctest --test-dir build --output-on-failure -L live    # only this
 
 For a fully scripted check (monitor source + known wav, no speaking), use the
 recipe in §4.
+
+## 6. Maths SLM Verification
+The SLM is optional, so verify both shapes:
+
+**With `llama.cpp` + GGUF** — `tst_engine` runs four real translations
+(`sigma`, `softmax` vector, derivative, decimal) and asserts `usedSlm`. To watch
+the raw model output:
+
+```sh
+QT_LOGGING_RULES='dex.slm.debug=true' ./build/tests/tst_engine
+# dex.slm: Loaded ".../Qwen3.5-0.8B-Q4_K_M.gguf" in 341 ms
+# dex.slm: raw: "{\"mode\":\"eval\",\"expr\":\"sigmoid(ln(2))\"}"
+```
+
+**Without `llama.cpp`** — build a second tree and run the same suite. The
+deterministic `spokenMath` rows must still pass and the SLM rows skip:
+
+```sh
+cmake -B build-nollama -G Ninja -DBUILD_TESTING=ON \
+  -DCMAKE_DISABLE_FIND_PACKAGE_LlamaCpp=ON
+cmake --build build-nollama
+ctest --test-dir build-nollama --output-on-failure -LE live
+# "Dex: llama.cpp not found - maths SLM disabled, deterministic maths only"
+```
+
+**Without the GGUF** — either rebuild as above or point
+`math_slm.model_path` at a missing file (or set `math_slm.enabled = false`).
+`LlamaMathTranslator::available()` returns false, so `CommandEngine` never
+constructs a translator and every maths query uses the deterministic path.

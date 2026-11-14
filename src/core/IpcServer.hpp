@@ -15,7 +15,7 @@ namespace dex {
 ///   SHOW | HIDE | TOGGLE | QUIT | CONFIRM | CANCEL
 ///   PARTIAL:<text>
 ///   FINAL:<text>
-///   SET_MODEL:<moonshine|parakeet|stub>
+///   SET_MODEL:<parakeet|stub>
 class IpcServer : public QObject
 {
     Q_OBJECT

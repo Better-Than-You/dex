@@ -6,7 +6,18 @@
 
 namespace dex {
 
-/// Deterministic pipeline: normalize -> maths -> rule routing.
+class LlamaMathTranslator;
+
+/// Deterministic pipeline with an optional maths/calculus SLM front-end.
+///
+/// Order (see docs/SPEC_ENGINE.md):
+///   1. `commands.toml` rules run first: desktop commands never pay for the
+///      SLM and dispatch on the deterministic fast path.
+///   2. Maths/calculus utterances may be normalised by `LlamaMathTranslator`
+///      (when enabled and the GGUF exists) into `{"mode":"eval|diff",...}`.
+///   3. If the SLM is unavailable or fails, the deterministic
+///      `TextNormalizer` + `MathEvaluator` / `SymbolicDifferentiator`
+///      pipeline handles the utterance.
 ///
 /// `process()` is side-effect free; the caller (AppController) decides whether
 /// to copy the maths result, dispatch a command or ask for confirmation.
@@ -21,11 +32,19 @@ public:
         QString expression;
         QString result;
         RouteResult route;
+
+        /// Diagnostics for the live test and logging.
+        bool usedSlm = false;
+        QString slmMode;
+        QString slmExpression;
     };
 
     CommandEngine(RuleRouter &router, bool confirmByDefault);
 
     void setConfirmByDefault(bool value) { m_confirmByDefault = value; }
+
+    /// Optional maths SLM. Not owned; may be nullptr (pure deterministic).
+    void setMathTranslator(LlamaMathTranslator *translator) { m_translator = translator; }
 
     Outcome process(const QString &rawText) const;
 
@@ -34,6 +53,7 @@ public:
 
 private:
     RuleRouter &m_router;
+    LlamaMathTranslator *m_translator = nullptr;
     bool m_confirmByDefault = false;
 };
 

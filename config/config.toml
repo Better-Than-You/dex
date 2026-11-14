@@ -4,17 +4,24 @@ confirm_by_default = false
 auto_hide_ms = 2200
 
 [asr]
-# "sherpa" (live microphone) or "stub" (text injected over the IPC socket).
+# "sherpa" (live microphone, Parakeet single-shot) or "stub" (text injected
+# over the IPC socket). `--stub` forces the stub regardless of this value.
 provider = "sherpa"
-# "moonshine" (fast, English) or "parakeet" (larger, more accurate).
-model_profile = "moonshine"
 model_dir = "~/.local/share/dex/models"
 # Optional override for the Silero VAD model; empty -> <model_dir>/silero_vad.onnx.
 vad_model = ""
 threads = 4
 silence_timeout_ms = 800
-partial_interval_ms = 400
 vad_threshold = 0.5
+
+[math_slm]
+# Phase 2.1: on-demand llama.cpp translator for noisy spoken maths.
+# The GGUF is only paged in for a maths/calculus query and is freed again
+# after `idle_unload_sec` so idle memory stays at zero.
+enabled = true
+model_path = "~/.local/share/dex/models/Qwen3.5-0.8B-Q4_K_M.gguf"
+threads = 4
+idle_unload_sec = 60
 
 [ui]
 anchor = "top"

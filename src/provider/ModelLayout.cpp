@@ -16,112 +16,72 @@ QString firstExisting(const QDir &dir, std::initializer_list<const char *> candi
     return {};
 }
 
-QStringList profileMarkers(const QString &profile)
+QString bundleDirectoryName()
 {
-    if (profile == QStringLiteral("moonshine")) {
-        return {
-            QStringLiteral("sherpa-onnx-moonshine-base-en-quantized-2026-02-27"),
-            QStringLiteral("sherpa-onnx-moonshine"),
-        };
-    }
-    if (profile == QStringLiteral("parakeet")) {
-        return {
-            QStringLiteral("sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"),
-            QStringLiteral("sherpa-onnx-nemo-parakeet"),
-        };
-    }
-    return {};
-}
-
-/// Candidate directories: the base directory itself plus any subdirectory
-/// whose name matches the profile markers (exact match first).
-QList<QDir> candidateDirs(const QString &modelDir, const QString &profile)
-{
-    const QDir base(modelDir);
-    QList<QDir> dirs;
-    dirs.append(base);
-
-    const QStringList markers = profileMarkers(profile);
-    const QStringList subdirs =
-        base.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
-
-    for (const QString &marker : markers) {
-        for (const QString &subdir : subdirs) {
-            if (subdir == marker)
-                dirs.prepend(base.filePath(subdir));
-        }
-        for (const QString &subdir : subdirs) {
-            if (subdir.startsWith(marker))
-                dirs.append(base.filePath(subdir));
-        }
-    }
-    return dirs;
+    return QStringLiteral("sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8");
 }
 
 } // namespace
 
+QString ModelLayout::bundleName()
+{
+    return bundleDirectoryName();
+}
+
 QString ModelLayout::canonicalProfile(const QString &raw)
 {
     const QString value = raw.trimmed().toLower();
-    if (value == QStringLiteral("moonshine") || value == QStringLiteral("moonshine-base")
-        || value == QStringLiteral("moonshine-streaming-medium")
-        || value == QStringLiteral("moonshine-v2") || value == QStringLiteral("balanced")) {
-        return QStringLiteral("moonshine");
-    }
     if (value == QStringLiteral("parakeet") || value == QStringLiteral("parakeet-v2")
         || value == QStringLiteral("parakeet-tdt") || value == QStringLiteral("accurate")) {
         return QStringLiteral("parakeet");
     }
-    if (value == QStringLiteral("light"))
-        return QStringLiteral("moonshine");
+    if (value == QStringLiteral("stub")) {
+        return QStringLiteral("stub");
+    }
     return {};
 }
 
 QStringList ModelLayout::supportedProfiles()
 {
-    return {QStringLiteral("moonshine"), QStringLiteral("parakeet")};
+    return {QStringLiteral("parakeet")};
 }
 
-std::optional<ModelLayout> ModelLayout::resolve(const QString &profile,
-                                                const QString &modelDir,
+std::optional<ModelLayout> ModelLayout::resolve(const QString &modelDir,
                                                 const QString &vadModel,
                                                 QString *error)
 {
-    const QString canonical = canonicalProfile(profile);
-    if (canonical.isEmpty()) {
-        if (error) {
-            *error = QStringLiteral("Unknown ASR model profile '%1' (expected one of: %2).")
-                         .arg(profile, supportedProfiles().join(QStringLiteral(", ")));
-        }
-        return std::nullopt;
-    }
-
     if (!QFileInfo(modelDir).isDir()) {
         if (error)
             *error = QStringLiteral("ASR model directory does not exist: %1").arg(modelDir);
         return std::nullopt;
     }
 
-    for (const QDir &dir : candidateDirs(modelDir, canonical)) {
+    const QDir base(modelDir);
+    const QString bundle = bundleDirectoryName();
+    const QString vadFileName = QStringLiteral("silero_vad.onnx");
+
+    // The base directory may be `models/` (bundle nested one level down) or the
+    // bundle itself (e.g. a test fixture or an explicit model_dir).
+    const QStringList candidates = {
+        base.filePath(bundle),
+        base.absolutePath(),
+    };
+
+    for (const QString &candidate : candidates) {
+        const QDir dir(candidate);
+
         ModelLayout layout;
-        layout.profile = canonical;
+        layout.profile = QStringLiteral("parakeet");
         layout.directory = dir.absolutePath();
+        layout.modelType = QStringLiteral("nemo_transducer");
+
+        layout.encoder = firstExisting(dir, {"encoder.int8.onnx", "encoder.onnx"});
+        layout.decoder = firstExisting(dir, {"decoder.int8.onnx", "decoder.onnx"});
+        layout.joiner = firstExisting(dir, {"joiner.int8.onnx", "joiner.onnx"});
         layout.tokens = firstExisting(dir, {"tokens.txt"});
 
-        if (canonical == QStringLiteral("moonshine")) {
-            layout.encoder = firstExisting(dir, {"encoder_model.ort", "encoder_model.onnx"});
-            layout.decoder = firstExisting(
-                dir, {"decoder_model_merged.ort", "decoder_model_merged.onnx"});
-        } else {
-            layout.encoder = firstExisting(dir, {"encoder.int8.onnx", "encoder.onnx"});
-            layout.decoder = firstExisting(dir, {"decoder.int8.onnx", "decoder.onnx"});
-            layout.joiner = firstExisting(dir, {"joiner.int8.onnx", "joiner.onnx"});
-            layout.modelType = QStringLiteral("nemo_transducer");
-        }
-
-        const bool complete = !layout.tokens.isEmpty() && !layout.encoder.isEmpty()
-            && !layout.decoder.isEmpty()
-            && (canonical == QStringLiteral("moonshine") || !layout.joiner.isEmpty());
+        const bool complete = !layout.encoder.isEmpty() && !layout.decoder.isEmpty()
+            && !layout.joiner.isEmpty() && !layout.tokens.isEmpty();
         if (!complete)
             continue;
 
@@ -130,8 +90,7 @@ std::optional<ModelLayout> ModelLayout::resolve(const QString &profile,
         else
             layout.vadModel = firstExisting(dir, {"silero_vad.onnx"});
         if (layout.vadModel.isEmpty()) {
-            const QString sibling =
-                QDir(modelDir).filePath(QStringLiteral("silero_vad.onnx"));
+            const QString sibling = base.filePath(vadFileName);
             if (QFileInfo::exists(sibling))
                 layout.vadModel = sibling;
         }
@@ -139,7 +98,7 @@ std::optional<ModelLayout> ModelLayout::resolve(const QString &profile,
         if (layout.vadModel.isEmpty()) {
             if (error) {
                 *error = QStringLiteral("Silero VAD model not found (expected %1).")
-                             .arg(QDir(modelDir).filePath(QStringLiteral("silero_vad.onnx")));
+                             .arg(base.filePath(vadFileName));
             }
             return std::nullopt;
         }
@@ -148,8 +107,10 @@ std::optional<ModelLayout> ModelLayout::resolve(const QString &profile,
     }
 
     if (error) {
-        *error = QStringLiteral("No %1 model bundle found below %2.")
-                     .arg(canonical, modelDir);
+        *error = QStringLiteral("No Parakeet model bundle found below %1 "
+                                "(expected %2/ with encoder.int8.onnx, decoder.int8.onnx, "
+                                "joiner.int8.onnx, tokens.txt).")
+                     .arg(base.absolutePath(), bundle);
     }
     return std::nullopt;
 }

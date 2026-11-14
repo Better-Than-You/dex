@@ -35,3 +35,6 @@ target_compile_definitions(tst_config PRIVATE
 target_compile_definitions(tst_engine PRIVATE
     DEX_COMMANDS_TOML="${CMAKE_SOURCE_DIR}/config/commands.toml"
 )
+target_compile_definitions(tst_live_input PRIVATE
+    DEX_COMMANDS_TOML="${CMAKE_SOURCE_DIR}/config/commands.toml"
+)

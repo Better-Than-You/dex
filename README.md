@@ -6,10 +6,16 @@ captures 16 kHz mono speech locally, and turns finalised utterances into either
 a maths result (copied to the clipboard) or a configured command. No audio or
 text ever leaves the machine.
 
-**Phase 2 is implemented:** live microphone capture, Silero VAD, and a
-dual-profile sherpa-onnx ASR backend (`moonshine` default, `parakeet`
-alternative). The Phase 1 text-injection stub remains available for testing.
-There are no LLMs anywhere in the pipeline.
+**Architecture:** live microphone capture, Silero VAD, single-shot NVIDIA Parakeet
+ASR (`sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8`), a vector/ML-aware maths
+evaluator, a symbolic differentiator, and an optional on-demand `llama.cpp`
+translator for noisy maths/calculus speech. The text-injection stub remains
+available for testing.
+
+Nothing is sent to a network service. Desktop commands and ordinary maths are
+handled deterministically; the small local SLM is only paged in for an
+unmatched maths/calculus utterance, and every SLM failure falls back to the
+deterministic parser.
 
 ## Requirements
 
@@ -19,6 +25,8 @@ There are no LLMs anywhere in the pipeline.
 - `layer-shell-qt`
 - `toml++`
 - `sherpa-onnx` C API + ONNX Runtime (headers and `libsherpa-onnx-c-api.so`)
+- Optional: `llama.cpp` (`llama.h`, `libllama.so`) — enables the on-demand
+  maths/calculus translator. Dex builds and runs without it.
 - PipeWire/PulseAudio input device that supports 16 kHz mono
 - `socat` (optional, for the IPC smoke test)
 - `wl-copy` at runtime for the maths clipboard result
@@ -35,6 +43,12 @@ Install the sherpa-onnx prebuilt bundle (or build it) so that
 `/usr/local/lib/libsherpa-onnx-c-api.so` exist. `cmake/FindSherpaOnnx.cmake`
 adds the right include/library paths and an rpath.
 
+For the maths SLM, build/install `llama.cpp` so that `llama.h` and
+`libllama.so` are discoverable (for example under `~/.local` or `/usr/local`;
+override with `-DLLAMA_CPP_ROOT=...`). When it is missing, CMake prints
+`Dex: llama.cpp not found - maths SLM disabled, deterministic maths only` and
+the rest of Dex works unchanged.
+
 ## Models
 
 ```sh
@@ -44,20 +58,23 @@ bash scripts/download-models.sh
 Downloads into `~/.local/share/dex/models`:
 
 - `silero_vad.onnx`
-- `sherpa-onnx-moonshine-base-en-quantized-2026-02-27` (default profile)
-- `sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8` (alternative profile)
+- `sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8` (single-shot transducer)
+- `Qwen3.5-0.8B-Q4_K_M.gguf` (maths SLM; `--skip-slm` to omit it)
 
-Use `--dir=/path/to/models` to choose another base directory. If a configured
-bundle is missing, Dex logs the error and falls back to the stub so the UI still
-starts.
+Use `--dir=/path/to/models` to choose another base directory. If the ASR bundle
+is missing, Dex logs the error and falls back to the stub so the UI still starts.
+A missing GGUF only disables the maths SLM.
 
 ## Build & test
 
 ```sh
 cmake -B build -G Ninja -DBUILD_TESTING=ON
 cmake --build build
-ctest --test-dir build --output-on-failure
+ctest --test-dir build --output-on-failure -LE live
 ```
+
+`tst_live_input` (label `live`) drives the real microphone; run it directly:
+`./build/tests/tst_live_input`.
 
 ## Run
 
@@ -91,7 +108,7 @@ Newline-delimited commands on `$XDG_RUNTIME_DIR/dex.sock`:
 SHOW | HIDE | TOGGLE | CONFIRM | CANCEL | QUIT
 PARTIAL:<text>
 FINAL:<text>
-SET_MODEL:moonshine|parakeet|stub
+SET_MODEL:parakeet|stub
 ```
 
 Examples:
@@ -110,9 +127,10 @@ A scripted smoke test lives at
 `config/config.toml` documents the defaults:
 
 - `[general]` — `daemon`, `confirm_by_default`, `auto_hide_ms`
-- `[asr]` — `provider` (`sherpa`/`stub`), `model_profile`
-  (`moonshine`/`parakeet`), `model_dir`, `vad_model`, `threads`,
-  `silence_timeout_ms`, `partial_interval_ms`, `vad_threshold`
+- `[asr]` — `provider` (`sherpa`/`stub`), `model_dir`, `vad_model`,
+  `threads`, `silence_timeout_ms`, `vad_threshold`
+- `[math_slm]` — `enabled`, `model_path`, `threads`, `idle_unload_sec`
+  (0 keeps the model resident; otherwise it is freed after that many seconds)
 - `[ui]` — `anchor`, `margin_top`, `width`
 
 `config/commands.toml` contains ordered rules. Patterns are Qt regular
@@ -125,12 +143,14 @@ opts a rule into `/bin/sh -c` execution (never enabled by default).
 
 ```
 src/core/      Config, AppController, IpcServer
-src/engine/    TextNormalizer, MathEvaluator, RuleRouter, ActionDispatcher, CommandEngine
+src/engine/    TextNormalizer, MathEvaluator, SymbolicDifferentiator,
+               LlamaMathTranslator, RuleRouter, ActionDispatcher, CommandEngine
 src/provider/  ITranscriptProvider, StubTranscriptProvider, AudioCapture,
                SpscRingBuffer, ModelLayout, SherpaTranscriptProvider, ProviderFactory
 qml/           Main.qml, Theme.qml, components/
-tests/         QtTest suites (normalizer, maths, router, config, engine, IPC, provider, audio)
-cmake/         FindSherpaOnnx.cmake
+tests/         QtTest suites (normalizer, maths, router, config, engine, IPC,
+               provider, audio, live input)
+cmake/         FindSherpaOnnx.cmake, FindLlamaCpp.cmake
 scripts/       download-models.sh
 ```
 
@@ -140,15 +160,33 @@ scripts/       download-models.sh
   it), pushed into a lock-free SPSC ring buffer.
 - VAD: Silero (`silero_vad.onnx`) with a configurable threshold and silence
   timeout. ~600 ms of pre-roll is kept so the first phoneme is not clipped.
-- Recognition: sherpa-onnx offline models on a dedicated `dex-asr` thread.
-  Partials re-decode a tail of the active VAD buffer ("simulated streaming");
-  finals decode the complete VAD segment.
-- Hot switching: `SET_MODEL:` or `asr.model_profile` reloads the recognizer
-  without restarting Dex.
+- Recognition: single-shot NVIDIA Parakeet TDT 0.6B v2 INT8 on a dedicated
+  `dex-asr` thread. No simulated streaming or intermediate partial decodes;
+  SherpaOnnx offline recognizer runs once per complete VAD segment
+  (`utteranceFinalized`). The UI shows "Listening..." with the live RMS pulse.
+- Memory & Tensor Optimization: final audio buffers are zero-padded to fixed
+  discrete buckets (32000, 64000, 128000, 240000 samples) so ONNX Runtime reuses
+  tensor shapes without arena bloat. Under glibc, `mallopt(M_ARENA_MAX, 2)` and
+  `mallopt(M_MMAP_THRESHOLD, 32 * 1024)` are applied at startup.
+
+## Maths pipeline
+
+- Router first: `commands.toml` matches dispatch on the deterministic fast path;
+  the SLM is never consulted for a desktop command.
+- Deterministic maths: `TextNormalizer` → `MathEvaluator` (scalars, vectors,
+  `sigmoid`/`sigma`, `relu`, `exp`, `softmax`) or `SymbolicDifferentiator`
+  (`0.5*(y_hat-y)^2` wrt `y_hat` → `y_hat - y`).
+- Noisy maths/calculus only: the LLM translates the transcript into one JSON
+  command (`{"mode":"eval|diff",...}`), constrained by a GBNF grammar. The
+  model loads on the first such query and is freed after `idle_unload_sec`.
+- Any failure (no build support, no GGUF, bad JSON, unusable expression) falls
+  back to the deterministic path.
+- Debug the SLM with `QT_LOGGING_RULES='dex.slm.debug=true'`.
 
 ## Phase scope
 
 - No microphone capture in stub mode; no network calls at all.
-- All intent parsing, maths and routing is deterministic.
+- Desktop intent parsing, routing, ordinary maths and differentiation are
+  deterministic.
 - ASR is behind `ITranscriptProvider`; the stub and sherpa backends are
   interchangeable.

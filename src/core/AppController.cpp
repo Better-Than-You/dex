@@ -1,6 +1,7 @@
 #include "core/AppController.hpp"
 
 #include "engine/TextNormalizer.hpp"
+#include "engine/LlamaMathTranslator.hpp"
 #include "provider/ModelLayout.hpp"
 #include "provider/ProviderFactory.hpp"
 #include "provider/StubTranscriptProvider.hpp"
@@ -29,6 +30,9 @@ AppController::AppController(Config config, RuleRouter *router, bool forceStub, 
     , m_router(router ? *router : fallbackRouter())
     , m_engine(m_router, m_config.general.confirmByDefault)
 {
+    m_mathTranslator = std::make_unique<LlamaMathTranslator>(m_config.mathSlm, this);
+    m_engine.setMathTranslator(m_mathTranslator.get());
+
     m_autoHideTimer.setSingleShot(true);
     m_autoHideTimer.setInterval(m_config.general.autoHideMs);
     connect(&m_autoHideTimer, &QTimer::timeout, this, [this] {
@@ -41,7 +45,8 @@ AppController::AppController(Config config, RuleRouter *router, bool forceStub, 
     });
 
     const ProviderSelection selection = ProviderFactory::resolve(m_config.asr, forceStub);
-    m_modelProfile = selection.profile;
+    m_modelProfile =
+        selection.kind == ProviderKind::Stub ? QStringLiteral("stub") : QStringLiteral("parakeet");
     m_providerName =
         selection.kind == ProviderKind::Stub ? QStringLiteral("stub") : QStringLiteral("sherpa");
 
@@ -53,6 +58,7 @@ AppController::AppController(Config config, RuleRouter *router, bool forceStub, 
         m_providerError = providerError;
         m_provider = std::make_unique<StubTranscriptProvider>();
         m_providerName = QStringLiteral("stub");
+        m_modelProfile = QStringLiteral("stub");
     }
 
     connect(m_provider.get(), &ITranscriptProvider::partialTextChanged,
@@ -213,12 +219,55 @@ void AppController::handleSetModel(const QString &profile)
     const QString canonical = ModelLayout::canonicalProfile(profile);
     if (canonical.isEmpty()) {
         m_errorText =
-            QStringLiteral("Unknown ASR profile \"%1\".").arg(profile.trimmed());
+            QStringLiteral("Unknown ASR profile \"%1\" (Dex only supports parakeet or stub).")
+                .arg(profile.trimmed());
         emit statusChanged();
         return;
     }
 
-    if (!m_provider || !m_provider->setModelProfile(canonical)) {
+    if (canonical == QStringLiteral("stub") && !dynamic_cast<StubTranscriptProvider *>(m_provider.get())) {
+        if (m_provider)
+            m_provider->stop();
+        m_provider = std::make_unique<StubTranscriptProvider>();
+        m_providerName = QStringLiteral("stub");
+        connect(m_provider.get(), &ITranscriptProvider::partialTextChanged,
+                this, &AppController::handlePartial);
+        connect(m_provider.get(), &ITranscriptProvider::utteranceFinalized,
+                this, &AppController::handleFinal);
+        connect(m_provider.get(), &ITranscriptProvider::levelChanged, this, [this](qreal level) {
+            if (qFuzzyCompare(m_audioLevel + 1.0, level + 1.0))
+                return;
+            m_audioLevel = level;
+            emit audioLevelChanged();
+        });
+        connect(m_provider.get(), &ITranscriptProvider::errorTextChanged,
+                this, &AppController::handleProviderError);
+        m_provider->start();
+    } else if (canonical == QStringLiteral("parakeet") && dynamic_cast<StubTranscriptProvider *>(m_provider.get())) {
+        QString error;
+        auto newProvider = ProviderFactory::create(m_config.asr, false, nullptr, &error);
+        if (!newProvider) {
+            m_errorText = QStringLiteral("Cannot switch to Parakeet: %1").arg(error);
+            emit statusChanged();
+            return;
+        }
+        m_provider->stop();
+        m_provider = std::move(newProvider);
+        m_providerName = QStringLiteral("sherpa");
+        connect(m_provider.get(), &ITranscriptProvider::partialTextChanged,
+                this, &AppController::handlePartial);
+        connect(m_provider.get(), &ITranscriptProvider::utteranceFinalized,
+                this, &AppController::handleFinal);
+        connect(m_provider.get(), &ITranscriptProvider::levelChanged, this, [this](qreal level) {
+            if (qFuzzyCompare(m_audioLevel + 1.0, level + 1.0))
+                return;
+            m_audioLevel = level;
+            emit audioLevelChanged();
+        });
+        connect(m_provider.get(), &ITranscriptProvider::errorTextChanged,
+                this, &AppController::handleProviderError);
+        m_provider->start();
+    } else if (m_provider && !m_provider->setModelProfile(canonical)) {
         if (m_errorText.isEmpty()) {
             m_errorText =
                 QStringLiteral("Cannot switch to the \"%1\" ASR model.").arg(canonical);
@@ -233,7 +282,7 @@ void AppController::handleSetModel(const QString &profile)
     }
     m_errorText.clear();
     m_statusTitle = QStringLiteral("Model: %1").arg(canonical);
-    m_statusDetail = QStringLiteral("Reloading recognizer");
+    m_statusDetail = QStringLiteral("Active recognizer: %1").arg(canonical);
     emit statusChanged();
 }
 

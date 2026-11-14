@@ -15,6 +15,10 @@
 #include <csignal>
 #include <cstdio>
 
+#ifdef __GLIBC__
+#    include <malloc.h>
+#endif
+
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -102,6 +106,14 @@ void configureLayerShell(QQuickWindow *window, AppController *controller, const 
 
 int main(int argc, char *argv[])
 {
+    // sherpa-onnx and llama.cpp allocate multi-megabyte scratch buffers from
+    // several threads. Two arenas plus a 32 KiB mmap threshold make glibc hand
+    // freed buffers back to the OS instead of letting RSS creep up.
+#ifdef __GLIBC__
+    mallopt(M_ARENA_MAX, 2);
+    mallopt(M_MMAP_THRESHOLD, 32 * 1024);
+#endif
+
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Dex"));
     QCoreApplication::setApplicationName(QStringLiteral("dex"));

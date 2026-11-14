@@ -12,6 +12,7 @@ find_package(tomlplusplus REQUIRED)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(SherpaOnnx REQUIRED)
+find_package(LlamaCpp QUIET)
 
 qt_standard_project_setup()
 
@@ -31,6 +32,10 @@ add_library(dex_core STATIC
     src/engine/TextNormalizer.cpp
     src/engine/MathEvaluator.hpp
     src/engine/MathEvaluator.cpp
+    src/engine/SymbolicDifferentiator.hpp
+    src/engine/SymbolicDifferentiator.cpp
+    src/engine/LlamaMathTranslator.hpp
+    src/engine/LlamaMathTranslator.cpp
     src/engine/RuleRouter.hpp
     src/engine/RuleRouter.cpp
     src/engine/ActionDispatcher.hpp
@@ -60,6 +65,14 @@ target_link_libraries(dex_core PUBLIC
     SherpaOnnx::SherpaOnnx
 )
 target_compile_features(dex_core PUBLIC cxx_std_20)
+
+if(LlamaCpp_FOUND)
+    target_link_libraries(dex_core PRIVATE LlamaCpp::LlamaCpp)
+    target_compile_definitions(dex_core PRIVATE DEX_HAVE_LLAMA=1)
+    message(STATUS "Dex: maths SLM enabled (llama.cpp: ${LlamaCpp_LIBRARY})")
+else()
+    message(STATUS "Dex: llama.cpp not found - maths SLM disabled, deterministic maths only")
+endif()
 
 # ---------------------------------------------------------------------------
 # dex executable + QML module (URI Dex)

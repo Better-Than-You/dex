@@ -14,18 +14,26 @@ struct GeneralConfig {
 };
 
 struct AsrConfig {
-    /// "sherpa" (default) or "stub". `--stub` overrides this at runtime.
+    /// "sherpa" (default, Parakeet single-shot) or "stub". `--stub` overrides
+    /// this at runtime.
     QString provider = QStringLiteral("sherpa");
-    /// "moonshine" (default) or "parakeet".
-    QString modelProfile = QStringLiteral("moonshine");
-    /// Base directory that holds the model bundles and `silero_vad.onnx`.
+    /// Base directory that holds the Parakeet bundle and `silero_vad.onnx`.
     QString modelDir;
     /// Optional explicit VAD model path. Empty -> `<modelDir>/silero_vad.onnx`.
     QString vadModel;
     int threads = 4;
     int silenceTimeoutMs = 800;
-    int partialIntervalMs = 400;
     double vadThreshold = 0.5;
+};
+
+/// Phase 2.1: on-demand llama.cpp translator for noisy spoken maths/calculus.
+/// The model is never loaded at startup; it is paged in on the first maths
+/// query and released again after `idleUnloadSec` of inactivity.
+struct MathSlmConfig {
+    bool enabled = true;
+    QString modelPath;
+    int threads = 4;
+    int idleUnloadSec = 60;
 };
 
 struct UiConfig {
@@ -37,6 +45,7 @@ struct UiConfig {
 struct Config {
     GeneralConfig general;
     AsrConfig asr;
+    MathSlmConfig mathSlm;
     UiConfig ui;
 
     /// Loads `config.toml`. Missing keys keep their defaults. Returns the
@@ -57,4 +66,8 @@ QString defaultCommandsPath();
 /// `$XDG_DATA_HOME/dex/models` or `~/.local/share/dex/models`.
 QString defaultModelDir();
 
+/// `$XDG_DATA_HOME/dex/models/Qwen3.5-0.8B-Q4_K_M.gguf`.
+QString defaultSlmModelPath();
+
 } // namespace dex
+

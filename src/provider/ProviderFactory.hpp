@@ -13,13 +13,14 @@ enum class ProviderKind { Stub, Sherpa };
 
 struct ProviderSelection {
     ProviderKind kind = ProviderKind::Stub;
-    QString profile; ///< Canonical profile, or "stub".
-    QString reason;  ///< Why this backend was chosen (useful in logs/tests).
+    QString reason; ///< Why this backend was chosen (useful in logs/tests).
 };
 
 /// Decides which transcript provider to build from `[asr]` configuration.
 ///
-/// `forceStub` comes from the `--stub` command-line flag and always wins.
+/// There is a single live backend: NVIDIA Parakeet (INT8, single-shot per VAD
+/// utterance). `forceStub` comes from the `--stub` command-line flag and always
+/// wins.
 class ProviderFactory
 {
 public:
@@ -27,7 +28,7 @@ public:
     static ProviderSelection resolve(const AsrConfig &config, bool forceStub);
 
     /// Builds the selected provider. Returns nullptr and fills `error` when
-    /// the configured model bundle is missing or incomplete.
+    /// the Parakeet bundle is missing or incomplete.
     static std::unique_ptr<ITranscriptProvider> create(const AsrConfig &config,
                                                        bool forceStub,
                                                        QObject *parent = nullptr,

@@ -81,12 +81,12 @@ void TestIpc::modelCommands()
     QLocalSocket socket;
     socket.connectToServer(server.socketPath());
     QVERIFY(socket.waitForConnected(1000));
-    socket.write("SET_MODEL:parakeet\nset_model: moonshine \n");
+    socket.write("SET_MODEL:parakeet\nset_model: stub \n");
     socket.flush();
 
     QTRY_COMPARE(setModel.count(), 2);
     QCOMPARE(setModel.at(0).at(0).toString(), QStringLiteral("parakeet"));
-    QCOMPARE(setModel.at(1).at(0).toString(), QStringLiteral("moonshine"));
+    QCOMPARE(setModel.at(1).at(0).toString(), QStringLiteral("stub"));
 }
 
 void TestIpc::bufferedLines()

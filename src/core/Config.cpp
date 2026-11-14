@@ -62,10 +62,6 @@ void readAsr(const toml::table &table, AsrConfig &asr)
         if (!provider.isEmpty())
             asr.provider = provider;
 
-        const QString profile = stringOr(*node, "model_profile", asr.modelProfile);
-        if (!profile.isEmpty())
-            asr.modelProfile = profile;
-
         const QString modelDir = stringOr(*node, "model_dir", asr.modelDir);
         if (!modelDir.isEmpty())
             asr.modelDir = expandPath(modelDir);
@@ -77,8 +73,6 @@ void readAsr(const toml::table &table, AsrConfig &asr)
         asr.threads = clamped(valueOr(*node, "threads", asr.threads), 1, 16);
         asr.silenceTimeoutMs =
             clamped(valueOr(*node, "silence_timeout_ms", asr.silenceTimeoutMs), 100, 5000);
-        asr.partialIntervalMs =
-            clamped(valueOr(*node, "partial_interval_ms", asr.partialIntervalMs), 100, 2000);
         asr.vadThreshold =
             clamped(valueOr(*node, "vad_threshold", asr.vadThreshold), 0.05, 0.95);
     }
@@ -87,6 +81,24 @@ void readAsr(const toml::table &table, AsrConfig &asr)
         asr.modelDir = defaultModelDir();
     if (asr.vadModel.isEmpty())
         asr.vadModel = QDir(asr.modelDir).filePath(QStringLiteral("silero_vad.onnx"));
+}
+
+void readMathSlm(const toml::table &table, MathSlmConfig &slm)
+{
+    if (const auto *node = table["math_slm"].as_table()) {
+        slm.enabled = valueOr(*node, "enabled", slm.enabled);
+
+        const QString modelPath = stringOr(*node, "model_path", slm.modelPath);
+        if (!modelPath.isEmpty())
+            slm.modelPath = expandPath(modelPath);
+
+        slm.threads = clamped(valueOr(*node, "threads", slm.threads), 1, 16);
+        slm.idleUnloadSec =
+            clamped(valueOr(*node, "idle_unload_sec", slm.idleUnloadSec), 0, 3600);
+    }
+
+    if (slm.modelPath.isEmpty())
+        slm.modelPath = defaultSlmModelPath();
 }
 
 void readUi(const toml::table &table, UiConfig &ui)
@@ -105,6 +117,7 @@ Config readConfig(const toml::table &table)
     Config config;
     readGeneral(table, config.general);
     readAsr(table, config.asr);
+    readMathSlm(table, config.mathSlm);
     readUi(table, config.ui);
     return config;
 }
@@ -163,6 +176,11 @@ QString defaultModelDir()
     if (!xdg.isEmpty())
         return QDir(xdg).filePath(QStringLiteral("dex/models"));
     return QDir::home().filePath(QStringLiteral(".local/share/dex/models"));
+}
+
+QString defaultSlmModelPath()
+{
+    return QDir(defaultModelDir()).filePath(QStringLiteral("Qwen3.5-0.8B-Q4_K_M.gguf"));
 }
 
 } // namespace dex

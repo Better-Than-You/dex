@@ -14,13 +14,16 @@ namespace dex {
 
 class SherpaWorker;
 
-/// Phase 2 ASR provider: 16 kHz capture -> Silero VAD -> sherpa-onnx offline
-/// recognizer running on a dedicated thread.
+/// Live ASR provider: 16 kHz capture -> Silero VAD -> NVIDIA Parakeet TDT 0.6B
+/// v2 (INT8), decoded single-shot once per complete VAD utterance.
 ///
-/// The model is offline (non-streaming), so partial transcripts are produced
-/// by periodically re-decoding the active VAD buffer, the same "simulated
-/// streaming" technique used by sherpa-onnx's own examples. A completed VAD
-/// segment triggers a final decode and `utteranceFinalized`.
+/// There is no simulated streaming: `partialTextChanged` is never emitted
+/// during speech, and `utteranceFinalized` fires exactly once when Silero VAD
+/// observes `asr.silence_timeout_ms` of trailing silence. The UI shows
+/// "Listening…" with the live RMS pulse until then.
+///
+/// `StubTranscriptProvider` remains the alternative backend for headless
+/// testing (`--stub`, `asr.provider = "stub"`).
 class SherpaTranscriptProvider : public ITranscriptProvider
 {
     Q_OBJECT

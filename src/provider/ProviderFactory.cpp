@@ -11,29 +11,21 @@ namespace dex {
 ProviderSelection ProviderFactory::resolve(const AsrConfig &config, bool forceStub)
 {
     if (forceStub)
-        return {ProviderKind::Stub, QStringLiteral("stub"), QStringLiteral("--stub")};
+        return {ProviderKind::Stub, QStringLiteral("--stub")};
 
     const QString provider = config.provider.trimmed().toLower();
     if (provider == QStringLiteral("stub")) {
-        return {ProviderKind::Stub, QStringLiteral("stub"),
-                QStringLiteral("asr.provider = \"stub\"")};
+        return {ProviderKind::Stub, QStringLiteral("asr.provider = \"stub\"")};
     }
 
     if (!provider.isEmpty() && provider != QStringLiteral("sherpa")
         && provider != QStringLiteral("auto")) {
-        return {ProviderKind::Stub, QStringLiteral("stub"),
+        return {ProviderKind::Stub,
                 QStringLiteral("Unknown asr.provider \"%1\"; using stub")
                     .arg(config.provider)};
     }
 
-    const QString profile = ModelLayout::canonicalProfile(config.modelProfile);
-    if (profile.isEmpty()) {
-        return {ProviderKind::Stub, QStringLiteral("stub"),
-                QStringLiteral("Unknown asr.model_profile \"%1\"; using stub")
-                    .arg(config.modelProfile)};
-    }
-
-    return {ProviderKind::Sherpa, profile, QStringLiteral("sherpa-onnx")};
+    return {ProviderKind::Sherpa, QStringLiteral("sherpa-onnx (Parakeet)")};
 }
 
 std::unique_ptr<ITranscriptProvider> ProviderFactory::create(const AsrConfig &config,
