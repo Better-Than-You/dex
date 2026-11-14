@@ -1,0 +1,100 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import Dex
+
+/// Pill used for every non-card state: listening, processing, executed, error.
+Item {
+    id: root
+
+    property string mode: "listening" // listening | processing | executed | error
+    property string title: qsTr("Listening…")
+    property string detail: ""
+
+    implicitWidth: row.implicitWidth + Theme.spacingXl
+    implicitHeight: row.implicitHeight + Theme.spacingL
+
+    RowLayout {
+        id: row
+        anchors.fill: parent
+        anchors.margins: Theme.spacingM
+        spacing: Theme.spacingM
+
+        Item {
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
+            Layout.alignment: Qt.AlignVCenter
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 36
+                height: 36
+                radius: 18
+                color: root.mode === "executed"
+                    ? Theme.secondaryContainer
+                    : root.mode === "error"
+                        ? Theme.errorContainer
+                        : Theme.surfaceContainerHighest
+
+                Rectangle {
+                    id: dot
+                    anchors.centerIn: parent
+                    width: root.mode === "error" ? 4 : 10
+                    height: root.mode === "error" ? 14 : 10
+                    radius: root.mode === "error" ? 2 : 5
+                    color: root.mode === "error" ? Theme.error : Theme.primary
+                    visible: root.mode === "listening" || root.mode === "error"
+
+                    SequentialAnimation on opacity {
+                        running: root.mode === "listening"
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutQuad }
+                        NumberAnimation { to: 1.0; duration: 700; easing.type: Easing.InOutQuad }
+                    }
+                }
+
+                BusyIndicator {
+                    anchors.centerIn: parent
+                    width: 22
+                    height: 22
+                    running: root.mode === "processing"
+                    visible: running
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "✓"
+                    visible: root.mode === "executed"
+                    color: Theme.contentSecondaryContainer
+                    font.pixelSize: 16
+                    font.weight: Font.DemiBold
+                }
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 2
+
+            Text {
+                Layout.fillWidth: true
+                text: root.title
+                color: Theme.contentSurface
+                font.pixelSize: Theme.fontTitle
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                maximumLineCount: 1
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: root.detail.length > 0
+                text: root.detail
+                color: Theme.contentSurfaceVariant
+                font.pixelSize: Theme.fontBody
+                elide: Text.ElideRight
+                maximumLineCount: 1
+            }
+        }
+    }
+}

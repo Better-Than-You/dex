@@ -1,0 +1,121 @@
+#include "core/Config.hpp"
+
+#include <QDir>
+#include <QFile>
+
+#include <toml++/toml.hpp>
+
+#include <string>
+#include <string_view>
+
+namespace dex {
+namespace {
+
+template <typename T>
+T valueOr(const toml::table &table, std::string_view key, T fallback)
+{
+    if (const toml::node *node = table.get(key)) {
+        if (auto value = node->value<T>())
+            return *value;
+    }
+    return fallback;
+}
+
+QString stringOr(const toml::table &table, std::string_view key, const QString &fallback)
+{
+    if (const toml::node *node = table.get(key)) {
+        if (auto value = node->value<std::string>())
+            return QString::fromStdString(*value);
+    }
+    return fallback;
+}
+
+void readGeneral(const toml::table &table, GeneralConfig &general)
+{
+    if (const auto *node = table["general"].as_table()) {
+        general.daemon = valueOr(*node, "daemon", general.daemon);
+        general.confirmByDefault = valueOr(*node, "confirm_by_default", general.confirmByDefault);
+        general.autoHideMs = valueOr(*node, "auto_hide_ms", general.autoHideMs);
+    }
+}
+
+void readAsr(const toml::table &table, AsrConfig &asr)
+{
+    if (const auto *node = table["asr"].as_table()) {
+        const QString profile = stringOr(*node, "model_profile", asr.modelProfile);
+        if (!profile.isEmpty())
+            asr.modelProfile = profile;
+        asr.threads = valueOr(*node, "threads", asr.threads);
+        asr.silenceTimeoutMs = valueOr(*node, "silence_timeout_ms", asr.silenceTimeoutMs);
+    }
+}
+
+void readUi(const toml::table &table, UiConfig &ui)
+{
+    if (const auto *node = table["ui"].as_table()) {
+        const QString anchor = stringOr(*node, "anchor", ui.anchor);
+        if (!anchor.isEmpty())
+            ui.anchor = anchor;
+        ui.marginTop = valueOr(*node, "margin_top", ui.marginTop);
+        ui.width = valueOr(*node, "width", ui.width);
+    }
+}
+
+Config readConfig(const toml::table &table)
+{
+    Config config;
+    readGeneral(table, config.general);
+    readAsr(table, config.asr);
+    readUi(table, config.ui);
+    return config;
+}
+
+QString configHome()
+{
+    const QString xdg = qEnvironmentVariable("XDG_CONFIG_HOME");
+    if (!xdg.isEmpty())
+        return xdg;
+    return QDir::home().filePath(QStringLiteral(".config"));
+}
+
+} // namespace
+
+std::optional<Config> Config::fromToml(std::string_view tomlText, QString *error)
+{
+    try {
+        const std::string text(tomlText);
+        const toml::table table = toml::parse(text);
+        return readConfig(table);
+    } catch (const toml::parse_error &parseError) {
+        if (error) {
+            *error = QStringLiteral("Failed to parse config: %1")
+                         .arg(QString::fromStdString(std::string(parseError.description())));
+        }
+        return std::nullopt;
+    }
+}
+
+std::optional<Config> Config::load(const QString &path, QString *error)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (error)
+            *error = QStringLiteral("Cannot open %1: %2").arg(path, file.errorString());
+        return std::nullopt;
+    }
+
+    const QByteArray data = file.readAll();
+    return fromToml(std::string_view(data.constData(), static_cast<size_t>(data.size())), error);
+}
+
+QString defaultConfigPath()
+{
+    return QDir(configHome()).filePath(QStringLiteral("dex/config.toml"));
+}
+
+QString defaultCommandsPath()
+{
+    return QDir(configHome()).filePath(QStringLiteral("dex/commands.toml"));
+}
+
+} // namespace dex

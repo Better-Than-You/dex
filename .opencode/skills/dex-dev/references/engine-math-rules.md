@@ -11,7 +11,8 @@
 ## 2. TextNormalizer Order of Operations
 1. Trim and lowercase raw text.
 2. Apply spoken-math replacements BEFORE dot stripping so `l.n.e` is preserved:
-   - `\bl\.?n\.?\s*\(?e\)?\b` -> `ln(e)`
+   - `\bl\.?n\.?\s*\(\s*e\s*\)` -> `ln(e)` (parenthesised form; exact regex in SPEC_ENGINE leaves a stray `)` on `ln(e)`)
+   - `\bl\.?n\.?e\b` -> `ln(e)` (bare `l.n.e` form)
    - `\bl\.?n\.?\b` -> `ln`
    - `\blog\b` -> `log`
    - `\b(?:multiplied by|times|into)\b` -> `*`

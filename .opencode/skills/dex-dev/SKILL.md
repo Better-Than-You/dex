@@ -18,6 +18,10 @@ description: Architect, implement, test, and debug Dex — a deterministic C++20
 - Unit tests: `ctest --test-dir build --output-on-failure`
 - IPC smoke test: `bash .opencode/skills/dex-dev/scripts/ipc-smoke.sh`
 
+## Privilege Escalation
+- Whenever elevated privileges are needed (installing packages, writing to system paths), use `pkexec` — never `sudo`.
+  Example: `pkexec pacman -S --needed --noconfirm layer-shell-qt`
+
 ## Module Layout & Boundaries
 1. `src/core/` — `Config` (`toml++` loader for `config.toml`), `AppController` (daemon vs. one-shot state machine), `IpcServer` (`QLocalServer`).
 2. `src/engine/` — `CommandEngine`:

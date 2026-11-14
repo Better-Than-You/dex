@@ -15,6 +15,8 @@ Do **NOT** integrate `whisper.cpp` or live microphone capture yet.
 - Build: `cmake --build build`
 - Test: `ctest --test-dir build --output-on-failure`
 
+**Privileges:** Whenever a sudo/elevated command is needed, use `pkexec` instead (e.g. `pkexec pacman -S --needed layer-shell-qt`).
+
 ## Architecture & Module Boundaries
 1. `src/core/` — `Config` (`config.toml` via `toml++`), `AppController` (daemon vs. one-shot state machine), `IpcServer` (`QLocalServer`).
 2. `src/engine/` — `CommandEngine`:

@@ -10,6 +10,11 @@ Attach `LayerShellQt::Window::get(window)` to the root `QQuickWindow`:
   - Switch dynamically to `KeyboardInteractivityOnDemand` when `state == AppController::Confirming` so `Enter` confirms and `Esc` cancels.
 
 ## 2. M3 Dark Tonal Tokens (`qml/Theme.qml` Singleton)
+> QML reserves `on<Capital>` names for signal handlers. Theme exposes the M3
+> content tokens with a `content*` prefix: `onSurface` -> `contentSurface`,
+> `onSurfaceVariant` -> `contentSurfaceVariant`, `onPrimary` -> `contentPrimary`,
+> etc. Values are unchanged.
+
 - `surfaceContainerHigh`: `"#1E1F25"`
 - `surfaceContainerHighest`: `"#282A31"`
 - `onSurface`: `"#E2E2E9"`
