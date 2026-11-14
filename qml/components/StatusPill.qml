@@ -10,6 +10,7 @@ Item {
     property string mode: "listening" // listening | processing | executed | error
     property string title: qsTr("Listening…")
     property string detail: ""
+    property real level: 0.0
 
     implicitWidth: row.implicitWidth + Theme.spacingXl
     implicitHeight: row.implicitHeight + Theme.spacingL
@@ -37,13 +38,42 @@ Item {
                         : Theme.surfaceContainerHighest
 
                 Rectangle {
+                    id: halo
+                    anchors.centerIn: parent
+                    width: 26 + root.level * 22
+                    height: width
+                    radius: width / 2
+                    color: Theme.primary
+                    opacity: root.mode === "listening" ? 0.08 + root.level * 0.30 : 0
+                    visible: root.mode === "listening"
+
+                    Behavior on width {
+                        NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic }
+                    }
+                    Behavior on opacity {
+                        NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic }
+                    }
+                }
+
+                Rectangle {
                     id: dot
                     anchors.centerIn: parent
-                    width: root.mode === "error" ? 4 : 10
-                    height: root.mode === "error" ? 14 : 10
-                    radius: root.mode === "error" ? 2 : 5
+                    width: root.mode === "error"
+                        ? 4
+                        : 8 + Math.round(root.level * 12)
+                    height: root.mode === "error"
+                        ? 14
+                        : 8 + Math.round(root.level * 12)
+                    radius: root.mode === "error" ? 2 : width / 2
                     color: root.mode === "error" ? Theme.error : Theme.primary
                     visible: root.mode === "listening" || root.mode === "error"
+
+                    Behavior on width {
+                        NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic }
+                    }
+                    Behavior on height {
+                        NumberAnimation { duration: Theme.durationFast; easing.type: Easing.OutCubic }
+                    }
 
                     SequentialAnimation on opacity {
                         running: root.mode === "listening"

@@ -4,13 +4,14 @@
 #include "engine/ActionDispatcher.hpp"
 #include "engine/CommandEngine.hpp"
 #include "engine/RuleRouter.hpp"
-#include "provider/StubTranscriptProvider.hpp"
+#include "provider/ITranscriptProvider.hpp"
 
 #include <QObject>
 #include <QString>
 #include <QTimer>
 #include <QtQml/qqmlregistration.h>
 
+#include <memory>
 #include <optional>
 
 class QJSEngine;
@@ -41,6 +42,9 @@ class AppController : public QObject
     Q_PROPERTY(int windowWidth READ windowWidth CONSTANT)
     Q_PROPERTY(int marginTop READ marginTop CONSTANT)
     Q_PROPERTY(int autoHideMs READ autoHideMs CONSTANT)
+    Q_PROPERTY(qreal audioLevel READ audioLevel NOTIFY audioLevelChanged)
+    Q_PROPERTY(QString modelProfile READ modelProfile NOTIFY modelProfileChanged)
+    Q_PROPERTY(QString providerName READ providerName CONSTANT)
 
 public:
     enum State {
@@ -54,7 +58,8 @@ public:
     };
     Q_ENUM(State)
 
-    AppController(Config config, RuleRouter *router, QObject *parent = nullptr);
+    AppController(Config config, RuleRouter *router, bool forceStub = false,
+                  QObject *parent = nullptr);
     ~AppController() override;
 
     /// QML_SINGLETON factory. The instance is created by main().
@@ -76,6 +81,9 @@ public:
     int windowWidth() const { return m_config.ui.width; }
     int marginTop() const { return m_config.ui.marginTop; }
     int autoHideMs() const { return m_config.general.autoHideMs; }
+    qreal audioLevel() const { return m_audioLevel; }
+    QString modelProfile() const { return m_modelProfile; }
+    QString providerName() const { return m_providerName; }
 
 public slots:
     /// IPC plumbing (also used by tests).
@@ -87,6 +95,7 @@ public slots:
     void handleConfirm();
     void handleCancel();
     void handleQuit();
+    void handleSetModel(const QString &profile);
 
     Q_INVOKABLE void showOverlay();
     Q_INVOKABLE void hideOverlay();
@@ -105,6 +114,8 @@ signals:
     void resultCopiedChanged();
     void statusChanged();
     void overlayVisibleChanged();
+    void audioLevelChanged();
+    void modelProfileChanged();
 
 private:
     void setState(State state);
@@ -114,11 +125,12 @@ private:
     void scheduleAutoHide();
     void clearAutoHide();
     void setOverlayVisible(bool visible);
+    void handleProviderError(const QString &error);
 
     Config m_config;
     RuleRouter &m_router;
     CommandEngine m_engine;
-    StubTranscriptProvider m_provider;
+    std::unique_ptr<ITranscriptProvider> m_provider;
     QTimer m_autoHideTimer;
 
     State m_state = Hidden;
@@ -130,6 +142,10 @@ private:
     QString m_statusDetail;
     QString m_errorText;
     QString m_confirmLabel;
+    QString m_modelProfile;
+    QString m_providerName;
+    QString m_providerError;
+    qreal m_audioLevel = 0.0;
     bool m_resultCopied = false;
     bool m_overlayVisible = false;
     std::optional<RouteResult> m_pending;

@@ -13,6 +13,17 @@ dex_add_test(tst_router)
 dex_add_test(tst_config)
 dex_add_test(tst_engine)
 dex_add_test(tst_ipc)
+dex_add_test(tst_provider)
+dex_add_test(tst_audio)
+
+# Live microphone test: needs a real input device plus the model bundles, so
+# it soft-skips when either is missing. Label it so it can be excluded with
+# `ctest -LE live`.
+dex_add_test(tst_live_input)
+set_tests_properties(tst_live_input PROPERTIES
+    LABELS live
+    TIMEOUT 120
+)
 
 target_compile_definitions(tst_router PRIVATE
     DEX_COMMANDS_TOML="${CMAKE_SOURCE_DIR}/config/commands.toml"

@@ -4,9 +4,17 @@ confirm_by_default = false
 auto_hide_ms = 2200
 
 [asr]
-model_profile = "balanced"
+# "sherpa" (live microphone) or "stub" (text injected over the IPC socket).
+provider = "sherpa"
+# "moonshine" (fast, English) or "parakeet" (larger, more accurate).
+model_profile = "moonshine"
+model_dir = "~/.local/share/dex/models"
+# Optional override for the Silero VAD model; empty -> <model_dir>/silero_vad.onnx.
+vad_model = ""
 threads = 4
 silence_timeout_ms = 800
+partial_interval_ms = 400
+vad_threshold = 0.5
 
 [ui]
 anchor = "top"

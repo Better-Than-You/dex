@@ -26,7 +26,11 @@ Configure `LayerShellQt::Window::get(window)` on the root `QQuickWindow`:
 - Shape tokens: `radiusPill: 28`, `radiusCard: 20`, `radiusChip: 12`
 
 ## 3. QML Visual States
-- **Listening:** Pill container (`radiusPill`), primary mic pulse icon, live streaming `partialText` (`onSurfaceVariant`).
+- **Listening:** Pill container (`radiusPill`), primary dot whose size/opacity follows `AppController.audioLevel` (plus a soft halo), live streaming `partialText` (`contentSurfaceVariant`). In stub mode the detail line explains how to inject `FINAL:<text>`.
 - **CommandExecuted:** Action chip (`secondaryContainer`, e.g., `Search • arch linux`) + checkmark icon.
-- **MathResult:** Expression subtitle (`onSurfaceVariant`) + large tabular result (`24px`, `Font.DemiBold`, `onSurface`) + `"Copied"` badge (`tertiaryContainer`).
+- **MathResult:** Expression subtitle (`contentSurfaceVariant`) + large tabular result (`24px`, `Font.DemiBold`, `contentSurface`) + `"Copied"` badge (`tertiaryContainer`).
 - **Confirming:** Command preview + M3 `Cancel [Esc]` outlined button and `Run [Enter]` filled `primary` button.
+
+> QML parses `on<Capital>` identifiers as signal handlers, so the M3
+> `onSurface` / `onPrimary` / ... tokens are exposed in `Theme.qml` with a
+> `content*` prefix (e.g. `onSurfaceVariant` -> `contentSurfaceVariant`).

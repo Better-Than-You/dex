@@ -94,12 +94,17 @@ void IpcServer::handleLine(const QString &line)
     if (line.isEmpty())
         return;
 
-    if (line.startsWith(QStringLiteral("PARTIAL:"))) {
+    if (line.startsWith(QStringLiteral("PARTIAL:"), Qt::CaseInsensitive)) {
         emit partialReceived(line.mid(8));
         return;
     }
-    if (line.startsWith(QStringLiteral("FINAL:"))) {
+    if (line.startsWith(QStringLiteral("FINAL:"), Qt::CaseInsensitive)) {
         emit finalReceived(line.mid(6));
+        return;
+    }
+    const QString modelPrefix = QStringLiteral("SET_MODEL:");
+    if (line.startsWith(modelPrefix, Qt::CaseInsensitive)) {
+        emit setModelRequested(line.mid(modelPrefix.size()).trimmed());
         return;
     }
 

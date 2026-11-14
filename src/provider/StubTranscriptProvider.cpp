@@ -17,6 +17,13 @@ void StubTranscriptProvider::stop()
     emit stateChanged(State::Idle);
 }
 
+bool StubTranscriptProvider::setModelProfile(const QString &profile)
+{
+    m_profile = profile;
+    emit stateChanged(State::Listening);
+    return true;
+}
+
 void StubTranscriptProvider::feedPartial(const QString &text)
 {
     emit stateChanged(State::Listening);

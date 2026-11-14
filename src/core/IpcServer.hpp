@@ -15,6 +15,7 @@ namespace dex {
 ///   SHOW | HIDE | TOGGLE | QUIT | CONFIRM | CANCEL
 ///   PARTIAL:<text>
 ///   FINAL:<text>
+///   SET_MODEL:<moonshine|parakeet|stub>
 class IpcServer : public QObject
 {
     Q_OBJECT
@@ -37,6 +38,7 @@ signals:
     void toggleRequested();
     void partialReceived(const QString &text);
     void finalReceived(const QString &text);
+    void setModelRequested(const QString &profile);
     void confirmRequested();
     void cancelRequested();
     void quitRequested();

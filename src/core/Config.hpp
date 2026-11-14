@@ -14,9 +14,18 @@ struct GeneralConfig {
 };
 
 struct AsrConfig {
-    QString modelProfile = QStringLiteral("balanced");
+    /// "sherpa" (default) or "stub". `--stub` overrides this at runtime.
+    QString provider = QStringLiteral("sherpa");
+    /// "moonshine" (default) or "parakeet".
+    QString modelProfile = QStringLiteral("moonshine");
+    /// Base directory that holds the model bundles and `silero_vad.onnx`.
+    QString modelDir;
+    /// Optional explicit VAD model path. Empty -> `<modelDir>/silero_vad.onnx`.
+    QString vadModel;
     int threads = 4;
     int silenceTimeoutMs = 800;
+    int partialIntervalMs = 400;
+    double vadThreshold = 0.5;
 };
 
 struct UiConfig {
@@ -44,5 +53,8 @@ QString defaultConfigPath();
 
 /// `$XDG_CONFIG_HOME/dex/commands.toml` or `~/.config/dex/commands.toml`.
 QString defaultCommandsPath();
+
+/// `$XDG_DATA_HOME/dex/models` or `~/.local/share/dex/models`.
+QString defaultModelDir();
 
 } // namespace dex

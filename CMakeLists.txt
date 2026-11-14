@@ -6,9 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Test)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Multimedia Network Test)
 find_package(LayerShellQt REQUIRED)
 find_package(tomlplusplus REQUIRED)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+find_package(SherpaOnnx REQUIRED)
 
 qt_standard_project_setup()
 
@@ -37,10 +40,25 @@ add_library(dex_core STATIC
     src/provider/ITranscriptProvider.hpp
     src/provider/StubTranscriptProvider.hpp
     src/provider/StubTranscriptProvider.cpp
+    src/provider/SpscRingBuffer.hpp
+    src/provider/AudioCapture.hpp
+    src/provider/AudioCapture.cpp
+    src/provider/ModelLayout.hpp
+    src/provider/ModelLayout.cpp
+    src/provider/SherpaTranscriptProvider.hpp
+    src/provider/SherpaTranscriptProvider.cpp
+    src/provider/ProviderFactory.hpp
+    src/provider/ProviderFactory.cpp
 )
 
 target_include_directories(dex_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(dex_core PUBLIC Qt6::Core Qt6::Network tomlplusplus::tomlplusplus)
+target_link_libraries(dex_core PUBLIC
+    Qt6::Core
+    Qt6::Network
+    Qt6::Multimedia
+    tomlplusplus::tomlplusplus
+    SherpaOnnx::SherpaOnnx
+)
 target_compile_features(dex_core PUBLIC cxx_std_20)
 
 # ---------------------------------------------------------------------------

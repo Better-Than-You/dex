@@ -5,6 +5,7 @@
 
 #include <toml++/toml.hpp>
 
+#include <algorithm>
 #include <string>
 #include <string_view>
 
@@ -21,6 +22,12 @@ T valueOr(const toml::table &table, std::string_view key, T fallback)
     return fallback;
 }
 
+template <typename T>
+T clamped(T value, T low, T high)
+{
+    return std::clamp(value, low, high);
+}
+
 QString stringOr(const toml::table &table, std::string_view key, const QString &fallback)
 {
     if (const toml::node *node = table.get(key)) {
@@ -28,6 +35,15 @@ QString stringOr(const toml::table &table, std::string_view key, const QString &
             return QString::fromStdString(*value);
     }
     return fallback;
+}
+
+QString expandPath(const QString &path)
+{
+    if (path == QStringLiteral("~"))
+        return QDir::homePath();
+    if (path.startsWith(QStringLiteral("~/")))
+        return QDir::home().filePath(path.mid(2));
+    return path;
 }
 
 void readGeneral(const toml::table &table, GeneralConfig &general)
@@ -42,12 +58,35 @@ void readGeneral(const toml::table &table, GeneralConfig &general)
 void readAsr(const toml::table &table, AsrConfig &asr)
 {
     if (const auto *node = table["asr"].as_table()) {
+        const QString provider = stringOr(*node, "provider", asr.provider);
+        if (!provider.isEmpty())
+            asr.provider = provider;
+
         const QString profile = stringOr(*node, "model_profile", asr.modelProfile);
         if (!profile.isEmpty())
             asr.modelProfile = profile;
-        asr.threads = valueOr(*node, "threads", asr.threads);
-        asr.silenceTimeoutMs = valueOr(*node, "silence_timeout_ms", asr.silenceTimeoutMs);
+
+        const QString modelDir = stringOr(*node, "model_dir", asr.modelDir);
+        if (!modelDir.isEmpty())
+            asr.modelDir = expandPath(modelDir);
+
+        const QString vadModel = stringOr(*node, "vad_model", asr.vadModel);
+        if (!vadModel.isEmpty())
+            asr.vadModel = expandPath(vadModel);
+
+        asr.threads = clamped(valueOr(*node, "threads", asr.threads), 1, 16);
+        asr.silenceTimeoutMs =
+            clamped(valueOr(*node, "silence_timeout_ms", asr.silenceTimeoutMs), 100, 5000);
+        asr.partialIntervalMs =
+            clamped(valueOr(*node, "partial_interval_ms", asr.partialIntervalMs), 100, 2000);
+        asr.vadThreshold =
+            clamped(valueOr(*node, "vad_threshold", asr.vadThreshold), 0.05, 0.95);
     }
+
+    if (asr.modelDir.isEmpty())
+        asr.modelDir = defaultModelDir();
+    if (asr.vadModel.isEmpty())
+        asr.vadModel = QDir(asr.modelDir).filePath(QStringLiteral("silero_vad.onnx"));
 }
 
 void readUi(const toml::table &table, UiConfig &ui)
@@ -116,6 +155,14 @@ QString defaultConfigPath()
 QString defaultCommandsPath()
 {
     return QDir(configHome()).filePath(QStringLiteral("dex/commands.toml"));
+}
+
+QString defaultModelDir()
+{
+    const QString xdg = qEnvironmentVariable("XDG_DATA_HOME");
+    if (!xdg.isEmpty())
+        return QDir(xdg).filePath(QStringLiteral("dex/models"));
+    return QDir::home().filePath(QStringLiteral(".local/share/dex/models"));
 }
 
 } // namespace dex

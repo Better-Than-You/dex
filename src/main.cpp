@@ -128,8 +128,12 @@ int main(int argc, char *argv[])
         QStringLiteral("Show immediately, handle one utterance, then exit."));
     const QCommandLineOption noIpcOption(
         QStringLiteral("no-ipc"), QStringLiteral("Do not start the control socket."));
+    const QCommandLineOption stubOption(
+        QStringLiteral("stub"),
+        QStringLiteral("Use the text-injection stub instead of live audio/ASR."));
 
-    parser.addOptions({configOption, commandsOption, socketOption, oneShotOption, noIpcOption});
+    parser.addOptions(
+        {configOption, commandsOption, socketOption, oneShotOption, noIpcOption, stubOption});
     parser.process(app);
 
     const QString configPath = resolveFile(parser.value(configOption),
@@ -160,7 +164,7 @@ int main(int argc, char *argv[])
     else
         qWarning().noquote() << commandsError;
 
-    AppController controller(config, &router);
+    AppController controller(config, &router, parser.isSet(stubOption));
     AppController::installInstance(&controller);
     installSignalWatcher(&controller);
 
@@ -194,6 +198,8 @@ int main(int argc, char *argv[])
         QObject::connect(&ipc, &IpcServer::toggleRequested, &controller, &AppController::handleToggle);
         QObject::connect(&ipc, &IpcServer::partialReceived, &controller, &AppController::handlePartial);
         QObject::connect(&ipc, &IpcServer::finalReceived, &controller, &AppController::handleFinal);
+        QObject::connect(&ipc, &IpcServer::setModelRequested,
+                         &controller, &AppController::handleSetModel);
         QObject::connect(&ipc, &IpcServer::confirmRequested, &controller, &AppController::handleConfirm);
         QObject::connect(&ipc, &IpcServer::cancelRequested, &controller, &AppController::handleCancel);
         QObject::connect(&ipc, &IpcServer::quitRequested, &controller, &AppController::handleQuit);

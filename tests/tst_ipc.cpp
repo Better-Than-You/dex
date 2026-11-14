@@ -12,6 +12,7 @@ class TestIpc : public QObject
 private slots:
     void controlCommands();
     void transcriptCommands();
+    void modelCommands();
     void bufferedLines();
 
 private:
@@ -66,6 +67,26 @@ void TestIpc::transcriptCommands()
     QTRY_COMPARE(final.count(), 1);
     QCOMPARE(partial.at(0).at(0).toString(), QStringLiteral("minus 2 into"));
     QCOMPARE(final.at(0).at(0).toString(), QStringLiteral("minus 2 into l.n.e"));
+}
+
+void TestIpc::modelCommands()
+{
+    dex::IpcServer server;
+    QString error;
+    QVERIFY2(server.listen(m_dir.filePath(QStringLiteral("model.sock")), &error),
+             qPrintable(error));
+
+    QSignalSpy setModel(&server, &dex::IpcServer::setModelRequested);
+
+    QLocalSocket socket;
+    socket.connectToServer(server.socketPath());
+    QVERIFY(socket.waitForConnected(1000));
+    socket.write("SET_MODEL:parakeet\nset_model: moonshine \n");
+    socket.flush();
+
+    QTRY_COMPARE(setModel.count(), 2);
+    QCOMPARE(setModel.at(0).at(0).toString(), QStringLiteral("parakeet"));
+    QCOMPARE(setModel.at(1).at(0).toString(), QStringLiteral("moonshine"));
 }
 
 void TestIpc::bufferedLines()

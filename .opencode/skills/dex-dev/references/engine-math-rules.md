@@ -3,7 +3,7 @@
 ## 1. Config Files (`~/.config/dex/`)
 - `config.toml`:
   - `[general]`: `daemon = true`, `confirm_by_default = false`, `auto_hide_ms = 2200`
-  - `[asr]`: `model_profile = "balanced"` (`"light"` | `"balanced"` | `"accurate"`), `threads = 4`, `silence_timeout_ms = 800`
+  - `[asr]`: `provider = "sherpa"` (`"sherpa"` | `"stub"`), `model_profile = "moonshine"` (`"moonshine"` | `"parakeet"`; legacy `light`/`balanced` -> `moonshine`, `accurate` -> `parakeet`), `model_dir = "~/.local/share/dex/models"`, `vad_model = ""`, `threads = 4`, `silence_timeout_ms = 800`, `partial_interval_ms = 400`, `vad_threshold = 0.5`
   - `[ui]`: `anchor = "top"`, `margin_top = 48`, `width = 460`
 - `commands.toml`:
   - Array of `[[commands]]` tables with `name`, `patterns` (regex array with named groups `(?<query>.+)`), `type` (`"url"` | `"exec"`), `exec`, `args`, and optional `confirm = true|false`.

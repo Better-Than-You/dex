@@ -31,7 +31,7 @@ Window {
             anchors.top: parent.top
             anchors.topMargin: Theme.spacingL
             width: Math.min(root.width - Theme.spacingXl * 2, 560)
-            height: loader.item ? loader.implicitHeight : 72
+            height: loader.height + Theme.spacingXs * 2
             radius: AppController.state === AppController.Confirming
                 ? Theme.radiusCard
                 : Theme.radiusPill
@@ -48,8 +48,13 @@ Window {
 
             Loader {
                 id: loader
-                anchors.fill: parent
-                anchors.margins: Theme.spacingXs
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: Theme.spacingXs
+                width: parent.width - Theme.spacingXs * 2
+                // Height comes from the loaded item so the card can size to
+                // it. Filling the card here would create a height binding
+                // loop (card -> loader -> item -> card).
                 sourceComponent: {
                     switch (AppController.state) {
                     case AppController.MathResult:
@@ -72,6 +77,7 @@ Window {
         id: listeningComponent
         StatusPill {
             mode: AppController.state === AppController.Processing ? "processing" : "listening"
+            level: AppController.audioLevel
             title: {
                 if (AppController.state === AppController.Processing)
                     return qsTr("Working…")
@@ -81,7 +87,9 @@ Window {
             }
             detail: AppController.state === AppController.Processing
                 ? AppController.finalText
-                : qsTr("Say a command or a calculation")
+                : AppController.providerName === "stub"
+                    ? qsTr("Stub input — send FINAL:<text> over IPC")
+                    : qsTr("Say a command or a calculation")
         }
     }
 

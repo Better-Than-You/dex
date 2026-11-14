@@ -1,8 +1,12 @@
 #include "core/AppController.hpp"
 
 #include "engine/TextNormalizer.hpp"
+#include "provider/ModelLayout.hpp"
+#include "provider/ProviderFactory.hpp"
+#include "provider/StubTranscriptProvider.hpp"
 
 #include <QCoreApplication>
+#include <QDebug>
 #include <QJSEngine>
 #include <QQmlEngine>
 
@@ -19,7 +23,7 @@ RuleRouter &fallbackRouter()
 }
 } // namespace
 
-AppController::AppController(Config config, RuleRouter *router, QObject *parent)
+AppController::AppController(Config config, RuleRouter *router, bool forceStub, QObject *parent)
     : QObject(parent)
     , m_config(std::move(config))
     , m_router(router ? *router : fallbackRouter())
@@ -36,12 +40,35 @@ AppController::AppController(Config config, RuleRouter *router, QObject *parent)
             QCoreApplication::quit();
     });
 
-    connect(&m_provider, &ITranscriptProvider::partialTextChanged,
-            this, &AppController::handlePartial);
-    connect(&m_provider, &ITranscriptProvider::utteranceFinalized,
-            this, &AppController::handleFinal);
+    const ProviderSelection selection = ProviderFactory::resolve(m_config.asr, forceStub);
+    m_modelProfile = selection.profile;
+    m_providerName =
+        selection.kind == ProviderKind::Stub ? QStringLiteral("stub") : QStringLiteral("sherpa");
 
-    m_provider.start();
+    QString providerError;
+    m_provider = ProviderFactory::create(m_config.asr, forceStub, nullptr, &providerError);
+    if (!m_provider) {
+        qWarning().noquote() << QStringLiteral("ASR unavailable: %1 — falling back to stub.")
+                                    .arg(providerError);
+        m_providerError = providerError;
+        m_provider = std::make_unique<StubTranscriptProvider>();
+        m_providerName = QStringLiteral("stub");
+    }
+
+    connect(m_provider.get(), &ITranscriptProvider::partialTextChanged,
+            this, &AppController::handlePartial);
+    connect(m_provider.get(), &ITranscriptProvider::utteranceFinalized,
+            this, &AppController::handleFinal);
+    connect(m_provider.get(), &ITranscriptProvider::levelChanged, this, [this](qreal level) {
+        if (qFuzzyCompare(m_audioLevel + 1.0, level + 1.0))
+            return;
+        m_audioLevel = level;
+        emit audioLevelChanged();
+    });
+    connect(m_provider.get(), &ITranscriptProvider::errorTextChanged,
+            this, &AppController::handleProviderError);
+
+    m_provider->start();
 
     if (!m_config.general.daemon) {
         setOverlayVisible(true);
@@ -49,7 +76,11 @@ AppController::AppController(Config config, RuleRouter *router, QObject *parent)
     }
 }
 
-AppController::~AppController() = default;
+AppController::~AppController()
+{
+    if (m_provider)
+        m_provider->stop();
+}
 
 AppController *AppController::create(QQmlEngine *, QJSEngine *)
 {
@@ -109,6 +140,28 @@ void AppController::resetTransientState()
     emit statusChanged();
 }
 
+void AppController::handleProviderError(const QString &error)
+{
+    qWarning().noquote() << QStringLiteral("ASR: %1").arg(error);
+    m_providerError = error;
+    m_errorText = error;
+
+    if (m_state == Confirming) {
+        emit statusChanged();
+        return;
+    }
+
+    if (m_overlayVisible) {
+        m_statusTitle = QStringLiteral("ASR unavailable");
+        m_statusDetail.clear();
+        emit statusChanged();
+        setState(Error);
+        scheduleAutoHide();
+    } else {
+        emit statusChanged();
+    }
+}
+
 void AppController::handleShow()
 {
     showOverlay();
@@ -155,6 +208,35 @@ void AppController::handleQuit()
     quit();
 }
 
+void AppController::handleSetModel(const QString &profile)
+{
+    const QString canonical = ModelLayout::canonicalProfile(profile);
+    if (canonical.isEmpty()) {
+        m_errorText =
+            QStringLiteral("Unknown ASR profile \"%1\".").arg(profile.trimmed());
+        emit statusChanged();
+        return;
+    }
+
+    if (!m_provider || !m_provider->setModelProfile(canonical)) {
+        if (m_errorText.isEmpty()) {
+            m_errorText =
+                QStringLiteral("Cannot switch to the \"%1\" ASR model.").arg(canonical);
+        }
+        emit statusChanged();
+        return;
+    }
+
+    if (m_modelProfile != canonical) {
+        m_modelProfile = canonical;
+        emit modelProfileChanged();
+    }
+    m_errorText.clear();
+    m_statusTitle = QStringLiteral("Model: %1").arg(canonical);
+    m_statusDetail = QStringLiteral("Reloading recognizer");
+    emit statusChanged();
+}
+
 void AppController::showOverlay()
 {
     setOverlayVisible(true);
@@ -184,7 +266,7 @@ void AppController::toggleOverlay()
 
 void AppController::submitUtterance(const QString &text)
 {
-    m_provider.feedFinal(text);
+    handleFinal(text);
 }
 
 void AppController::processUtterance(const QString &text)
@@ -285,7 +367,8 @@ void AppController::cancelAction()
 void AppController::quit()
 {
     clearAutoHide();
-    m_provider.stop();
+    if (m_provider)
+        m_provider->stop();
     QCoreApplication::quit();
 }
 
