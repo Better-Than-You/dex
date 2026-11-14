@@ -1,0 +1,14 @@
+[general]
+daemon = true
+confirm_by_default = false
+auto_hide_ms = 2200
+
+[asr]
+model_profile = "balanced"
+threads = 4
+silence_timeout_ms = 800
+
+[ui]
+anchor = "top"
+margin_top = 48
+width = 460

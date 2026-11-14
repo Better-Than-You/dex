@@ -1,0 +1,32 @@
+[[commands]]
+name = "web_search"
+patterns = [
+    "^search (?:for )?(?<query>.+)$",
+    "^google (?<query>.+)$",
+    "^look up (?<query>.+)$"
+]
+type = "url"
+exec = "$BROWSER"
+args = ["https://duckduckgo.com/?q=%{query}"]
+
+[[commands]]
+name = "youtube_search"
+patterns = ["^youtube (?<query>.+)$", "^play (?<query>.+) on youtube$"]
+type = "url"
+exec = "$BROWSER"
+args = ["https://www.youtube.com/results?search_query=%{query}"]
+
+[[commands]]
+name = "launch_app"
+patterns = ["^(?:open|launch|start) (?<app>[a-z0-9._-]+)$"]
+type = "exec"
+exec = "%{app}"
+args = []
+
+[[commands]]
+name = "hypr_workspace"
+patterns = ["^(?:switch to |go to )?workspace (?<num>[1-9]|10)$"]
+type = "exec"
+exec = "hyprctl"
+args = ["dispatch", "workspace", "%{num}"]
+confirm = false
