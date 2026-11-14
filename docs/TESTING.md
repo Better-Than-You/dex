@@ -8,7 +8,9 @@ Run via `ctest --test-dir build --output-on-failure -LE live` (8 suites; the
    - `"Hey Dex, search for Arch Linux Wiki."` → `"search for arch linux wiki"`
    - `"minus 2 into l.n.e"` → `"-2 * ln(e)"`
    - `"3.14 plus 2.5"` → `"3.14 + 2.5"`
-2. `tst_math` (21 cases):
+2. `tst_math` (spoken-math rows plus precedence, implicit multiplication,
+   functions, ML helpers, softmax vectors, derivatives, rejection and
+   formatting):
    - `"minus 2 multiplied by l.n.e"` → `-2.0`
    - `"minus 2 into l.n.e"` → `-2.0`
    - `"10 plus 5 times 2"` → `20.0`
@@ -45,7 +47,8 @@ Run via `ctest --test-dir build --output-on-failure -LE live` (8 suites; the
    buffered/partial lines.
 7. `tst_provider`:
    - factory defaults/`--stub` override and unknown-provider fallback
-   - canonical profile aliases (`parakeet-v2` → `parakeet`, `stub` → `stub`)
+   - canonical profile aliases (`parakeet-v2`/`accurate` → `parakeet`,
+     `stub` → `stub`) and rejection of `moonshine`/`whisper`
    - Parakeet bundle discovery (`encoder.int8.onnx`, `decoder.int8.onnx`,
      `joiner.int8.onnx`, `tokens.txt`, `silero_vad.onnx`)
    - missing VAD/joiner rejection, stub creation, missing-model failure
@@ -62,7 +65,7 @@ Run Dex with the text-injection backend and a private socket:
 
 ```sh
 ./build/dex --stub --socket /tmp/dex-stub.sock
-printf 'SHOW\nSET_MODEL:parakeet\nPARTIAL:minus 2 into\nFINAL:minus 2 into l.n.e\nQUIT\n' \
+printf 'SHOW\nSET_MODEL:stub\nPARTIAL:minus 2 into\nFINAL:minus 2 into l.n.e\nQUIT\n' \
   | socat - UNIX-CONNECT:/tmp/dex-stub.sock
 ```
 
@@ -110,7 +113,7 @@ pactl set-default-source "$ORIG"
 grep -E 'Dex ASR' /tmp/dex-e2e.log
 ```
 
-Expected final transcript:
+Expected final transcript (punctuation and casing may vary):
 
 ```
 After early nightfall, the yellow lamps would light up here and there the squalid quarter of the brothels.
@@ -118,13 +121,14 @@ After early nightfall, the yellow lamps would light up here and there the squali
 
 Useful logging:
 - `QT_ASSUME_STDERR_HAS_CONSOLE=1` keeps Qt logs on stderr.
-- `QT_LOGGING_RULES='dex.asr.debug=true'` prints partial transcripts
-  (`dex.asr` category).
+- The provider logs `Dex ASR: loaded parakeet ...`, `Dex ASR: final "..."`
+  and any dropped-sample warnings at info level; there is no separate
+  per-word debug category.
 
 Notes:
-- `--qpa offscreen` is only for headless verification; layer-shell is skipped.
-- Partial decodes are padded with 350 ms of silence so Moonshine does not loop
-  on the last word; finals use the full VAD segment including trailing silence.
+- `QT_QPA_PLATFORM=offscreen` is only for headless verification; layer-shell is skipped.
+- Single-shot mode has no partial decodes: the whole VAD segment, including
+  its trailing silence, is decoded exactly once when the segment closes.
 
 ## 5. Live Microphone Test (`tst_live_input`)
 The fastest way to see the real pipeline transcribe and evaluate: run the test
@@ -134,27 +138,28 @@ and talk.
 ./build/tests/tst_live_input
 ```
 
-It opens the **system default input**, loads the configured bundle, and streams
-partials, finals and engine results to stdout as they are decoded. The default
+It opens the **system default input**, loads the configured bundle, and prints
+each final transcript and engine result to stdout as it is decoded. The default
 `engine` mode also pushes each final through the production `CommandEngine`
 (including the on-demand maths SLM):
 
 ```
-Live ASR test: input='Usb Audio Device Mono' model='moonshine' mode='engine'
+Live ASR test: input='Usb Audio Device Mono' model='parakeet' mode='engine'
 Listening - speak 1 utterance(s) now (25 s timeout)...
-  [partial] minus 2 into
   [final]   minus 2 into ln e
   [slm]     {"mode":"eval","expr":"-2*ln(e)"}
   [result]  -2 * ln(e) = -2
 Captured 1 utterance(s): minus 2 into ln e
 ```
 
+The `[partial]` hook still exists for backends that emit live hypotheses, but
+single-shot Parakeet never does: `partialTextChanged` stays empty.
+
 Environment overrides:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `DEX_TEST_MODE` | `engine` | `asr` (raw transcripts) or `engine` (also evaluate) |
-| `DEX_TEST_PROFILE` | `moonshine` | `moonshine` or `parakeet` |
 | `DEX_TEST_MODEL_DIR` | `defaultModelDir()` | model base directory |
 | `DEX_TEST_SPEECH_TIMEOUT_MS` | `25000` | how long to wait for speech |
 | `DEX_TEST_UTTERANCES` | `1` | how many finals to collect |
@@ -167,8 +172,8 @@ Example: check a spoken sigmoid without any typing.
 DEX_TEST_UTTERANCES=2 DEX_TEST_EXPECT_RESULT='0.666667' ./build/tests/tst_live_input
 ```
 
-Add `QT_LOGGING_RULES='dex.asr.debug=true'` to also get the `dex.asr` category
-logs, or `dex.slm.debug=true` for the SLM's raw JSON, in the failure output.
+Add `QT_LOGGING_RULES='dex.slm.debug=true'` to get the SLM's raw JSON in the
+failure output.
 
 Behaviour:
 - Skips (not fails) when there is no default input device, the model bundle is

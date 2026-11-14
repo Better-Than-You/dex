@@ -17,7 +17,8 @@ without a microphone or model files.
   - `"Hey Dex, search for Arch Linux Wiki."` -> `"search for arch linux wiki"`
   - `"minus 2 into l.n.e"` -> `"-2 * ln(e)"`
   - `"3.14 plus 2.5"` -> `"3.14 + 2.5"`
-- `tst_math` (21 cases):
+- `tst_math` (spoken-math rows plus precedence, implicit multiplication,
+  functions, ML helpers, softmax vectors, derivatives, rejection and formatting):
   - `"minus 2 multiplied by l.n.e"` -> `-2.0`
   - `"minus 2 into l.n.e"` -> `-2.0`
   - `"10 plus 5 times 2"` -> `20.0`
@@ -40,8 +41,10 @@ without a microphone or model files.
 - `tst_provider`: factory/flag selection, aliases, Parakeet layout, missing-file rejection.
 - `tst_audio`: SPSC ring-buffer round-trip, wrap-around, drop count, reset.
 - `tst_live_input` (`live` label): default input -> VAD -> sherpa-onnx ->
-  `CommandEngine`; prints `[partial]`, `[final]`, `[slm]`, `[result]`.
-  `DEX_TEST_MODE=asr|engine` (default `engine`), `DEX_TEST_EXPECT_RESULT`.
+  `CommandEngine`; prints `[final]`, `[slm]` and `[result]`. The `[partial]`
+  hook stays idle because single-shot Parakeet never emits partials.
+  Env: `DEX_TEST_MODE=asr|engine` (default `engine`), `DEX_TEST_MODEL_DIR`,
+  `DEX_TEST_EXPECT`, `DEX_TEST_EXPECT_RESULT`.
 
 ## 3. Verification Recipes
 - Unit: `ctest --test-dir build --output-on-failure -LE live`
@@ -60,6 +63,7 @@ without a microphone or model files.
   afterwards. See `docs/TESTING.md` for the full script.
 - Spoken maths: `./build/tests/tst_live_input` (engine mode) and speak, e.g.
   "minus two into l n e"; watch `[slm]` and `[result]`.
-- Debug partials with `QT_LOGGING_RULES='dex.asr.debug=true'`; debug SLM JSON
-  with `dex.slm.debug=true`. Keep Qt logs on stderr with
+- Debug SLM JSON with `QT_LOGGING_RULES='dex.slm.debug=true'`; ASR finals are
+  logged at info level (`Dex ASR: final "..."`), and there is no per-word ASR
+  debug category. Keep Qt logs on stderr with
   `QT_ASSUME_STDERR_HAS_CONSOLE=1`.

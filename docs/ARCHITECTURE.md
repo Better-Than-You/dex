@@ -20,9 +20,9 @@ Configured in `~/.config/dex/config.toml`:
   - Disabled, missing GGUF, or a build without `llama.cpp` simply means maths
     queries take the deterministic path.
 - **Lifecycle mode (`daemon = true` default):**
-  - `daemon = true`: runs persistently, keeps the model warm in RAM, hides the
-    overlay until triggered (`SIGUSR1`, IPC `SHOW` / `TOGGLE`, or speech if
-    already shown).
+  - `daemon = true`: runs persistently, keeps the ASR model warm in RAM, and
+    hides the overlay until triggered (`SIGUSR1`, IPC `SHOW` / `TOGGLE`, or a
+    finalized utterance, which shows it while it is processed).
   - `daemon = false`: one-shot mode — opens the overlay immediately, processes
     one utterance (or manual close via `Esc`), and exits.
 
@@ -82,8 +82,9 @@ After `CommandEngine` receives `utteranceFinalized`:
 5. **Deterministic fallback** — if the SLM is disabled/unavailable/failed, the
    same utterance is normalised and evaluated by `MathEvaluator` (or
    `SymbolicDifferentiator` for derivative requests).
-6. `ConfirmationGate` → auto-execute unless `confirm = true` (rule) or
-   `general.confirm_by_default = true`.
+6. `AppController` confirmation gate → auto-execute unless `confirm = true`
+   (rule) or `general.confirm_by_default = true`; else enter `Confirming` and
+   wait for `CONFIRM` / `Enter` or `CANCEL` / `Esc`.
 7. `ActionDispatcher` → `QProcess::startDetached` (URL via `$BROWSER`, app
    launch, optional shell rule). Maths results are copied via `wl-copy` and
    shown in `MathResultCard`.
@@ -126,8 +127,10 @@ injection, and model switching:
 - `SHOW` / `HIDE` / `TOGGLE` — overlay visibility
 - `PARTIAL:<text>` — inject a partial transcript (useful in stub mode)
 - `FINAL:<text>` — inject a finalized utterance
-- `SET_MODEL:<moonshine|parakeet|stub>` — hot-switch profile (stub switches the
-  stub's recorded profile only)
+- `SET_MODEL:<parakeet|stub>` — hot-switch between the live Parakeet provider
+  and the text-injection stub. `parakeet` accepts the canonical aliases
+  (`parakeet-v2`, `parakeet-tdt`, `accurate`); anything else, including
+  `moonshine`, is rejected and surfaces `Unknown ASR profile` in the UI.
 - `CONFIRM` / `CANCEL` — resolve a pending `confirm = true` action
 - `QUIT` — clean daemon shutdown
 
@@ -136,20 +139,20 @@ Default base directory: `~/.local/share/dex/models`
 (`$XDG_DATA_HOME/dex/models` when set). `ModelLayout` searches the base
 directory and known bundle subdirectories for the required files:
 
-- **Moonshine:** `encoder_model.ort`, `decoder_model_merged.ort`, `tokens.txt`.
-  `model_type` is left empty so sherpa-onnx auto-detects merged-decoder v2.
 - **Parakeet:** `encoder.int8.onnx`, `decoder.int8.onnx`, `joiner.int8.onnx`,
-  `tokens.txt`, with `model_type = "nemo_transducer"`.
-- **VAD (both):** `silero_vad.onnx`, either beside the bundle or in the base
+  `tokens.txt`, with `model_type = "nemo_transducer"`. `ModelLayout` also
+  accepts the non-INT8 filenames (`encoder.onnx`, …) for a manually converted
+  bundle, but the shipped download uses INT8.
+- **VAD:** `silero_vad.onnx`, either beside the bundle or in the base
   directory; `asr.vad_model` can override the path.
 - **Maths SLM:** `Qwen3.5-0.8B-Q4_K_M.gguf` (about 510 MB), located via
   `math_slm.model_path`; the default is the base directory above.
 
-`scripts/download-models.sh` downloads the VAD, both ASR bundles and the GGUF
-(`--skip-slm` skips the GGUF) and prints a required-file checklist. If the
-configured ASR bundle is missing or incomplete, `ProviderFactory` returns an
-error and `AppController` falls back to the stub and surfaces the error in the
-UI instead of failing to start. A missing GGUF only disables the maths SLM.
+`scripts/download-models.sh` downloads the VAD, the Parakeet bundle and the
+GGUF (`--skip-slm` skips the GGUF) and prints a required-file checklist. If the
+ASR bundle is missing or incomplete, `ProviderFactory` returns an error and
+`AppController` falls back to the stub and surfaces the error in the UI instead
+of failing to start. A missing GGUF only disables the maths SLM.
 
 ## 8. Directory Layout
 - `src/main.cpp`

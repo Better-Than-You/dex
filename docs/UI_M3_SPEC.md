@@ -26,10 +26,23 @@ Configure `LayerShellQt::Window::get(window)` on the root `QQuickWindow`:
 - Shape tokens: `radiusPill: 28`, `radiusCard: 20`, `radiusChip: 12`
 
 ## 3. QML Visual States
-- **Listening:** Pill container (`radiusPill`), primary dot whose size/opacity follows `AppController.audioLevel` (plus a soft halo), live streaming `partialText` (`contentSurfaceVariant`). In stub mode the detail line explains how to inject `FINAL:<text>`.
-- **CommandExecuted:** Action chip (`secondaryContainer`, e.g., `Search • arch linux`) + checkmark icon.
-- **MathResult:** Expression subtitle (`contentSurfaceVariant`) + large tabular result (`24px`, `Font.DemiBold`, `contentSurface`) + `"Copied"` badge (`tertiaryContainer`).
-- **Confirming:** Command preview + M3 `Cancel [Esc]` outlined button and `Run [Enter]` filled `primary` button.
+- **Listening:** Pill container (`radiusPill`), `"Listening…"` title, and a
+  primary dot whose size/opacity follows `AppController.audioLevel` (plus a
+  soft halo). Single-shot ASR produces no partial text, so the title stays
+  `"Listening…"` while the user speaks. In stub mode the detail line explains
+  how to inject `FINAL:<text>`.
+- **Processing:** Same pill with `"Working…"` and a `BusyIndicator`; the
+  finalized transcript appears as the detail line.
+- **CommandExecuted:** Executed pill (`secondaryContainer` check icon, e.g.
+  `Search • arch linux`) with a `"Done"` detail line.
+- **MathResult:** Expression subtitle (`contentSurfaceVariant`) + large tabular
+  result (`24px`, `Font.DemiBold`, `contentSurface`) + `"Copied"` badge
+  (`tertiaryContainer`).
+- **Confirming:** Rounded card with `?` icon (`primaryContainer`), command
+  preview, M3 `Cancel Esc` outlined button and `Run Enter` filled `primary`
+  button.
+- **Error:** Error pill with the `errorContainer` icon well, status title and
+  the provider error as detail.
 
 > QML parses `on<Capital>` identifiers as signal handlers, so the M3
 > `onSurface` / `onPrimary` / ... tokens are exposed in `Theme.qml` with a

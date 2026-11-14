@@ -51,7 +51,7 @@
 6. Strip wake prefixes: `^(?:hey dex|dex|please|can you)[\s,]+`.
 7. Canonical spacing: remove unary gaps (`- 2` -> `-2`), tighten calls (`ln (2)` -> `ln(2)`), space `^`.
 
-`TextNormalizer::derivative(raw)` returns `DerivativeRequest{expression, variable}` for `… in respect to <var>` / `… wrt <var>` / `d/dx …`.
+`TextNormalizer::derivative(raw)` returns `DerivativeRequest{expression, variable}` for `… in respect to <var>` / `… wrt <var>`; a leading `d/d<var>` in the expression part is stripped.
 
 ## 4. MathEvaluator
 - Public API: `std::optional<MathResult> evaluate(QString)`, `evaluateUtterance(QString)`, `looksLikeMath()`, `isMathTrigger()`, `hasMathContent()`, `format(double)`, `format(MathResult)`.

@@ -30,7 +30,9 @@ Attach `LayerShellQt::Window::get(window)` to the root `QQuickWindow`:
 - Radii: `radiusPill: 28`, `radiusCard: 20`, `radiusChip: 12`
 
 ## 3. UI States
-- `Listening`: Pill container (`radiusPill`), primary mic indicator, live streaming `partialText` (`onSurfaceVariant`).
-- `CommandExecuted`: Action chip (`secondaryContainer`, e.g. `Search • arch linux`) + checkmark icon.
-- `MathResult`: Expression (`onSurfaceVariant`) + 24px `Font.DemiBold` result (`onSurface`) + `"Copied"` badge (`tertiaryContainer`).
-- `Confirming`: Action preview + M3 `Cancel [Esc]` outlined button and `Run [Enter]` filled `primary` button.
+- `Listening`: Pill container (`radiusPill`), primary dot whose size/opacity follows `AppController.audioLevel` (plus a soft halo/pulse), title `Listening…`. Single-shot Parakeet emits no partials, so no streaming text appears; stub mode explains how to inject `FINAL:<text>` in the detail line.
+- `Processing`: Same pill with `Working…` and a `BusyIndicator`; the finalized transcript is the detail line.
+- `CommandExecuted`: Executed pill (`secondaryContainer` check icon, e.g. `Search • arch linux`) with a `Done` detail line.
+- `MathResult`: Expression subtitle (`contentSurfaceVariant`) + 24px `Font.DemiBold` result (`contentSurface`) + `"Copied"` badge (`tertiaryContainer`).
+- `Confirming`: Rounded card with `?` icon (`primaryContainer`), action preview, and M3 `Cancel Esc` outlined / `Run Enter` filled `primary` buttons.
+- `Error`: Error pill (`errorContainer` icon well) with status title and provider error detail.

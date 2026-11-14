@@ -183,10 +183,16 @@ scripts/       download-models.sh
   back to the deterministic path.
 - Debug the SLM with `QT_LOGGING_RULES='dex.slm.debug=true'`.
 
-## Phase scope
+## Current scope
 
+- Single-shot ASR: Silero VAD closes the utterance, then Parakeet decodes it
+  once. There are no streaming partial transcripts; while you speak the pill
+  shows `"Listening…"` with the live RMS pulse.
 - No microphone capture in stub mode; no network calls at all.
 - Desktop intent parsing, routing, ordinary maths and differentiation are
   deterministic.
+- The optional maths/calculus SLM only rewrites noisy maths/calculus speech; it
+  never handles desktop commands and every failure falls back to the
+  deterministic path.
 - ASR is behind `ITranscriptProvider`; the stub and sherpa backends are
   interchangeable.
