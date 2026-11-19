@@ -37,7 +37,7 @@ void TestRouter::webSearch()
     QCOMPARE(route->ruleName, QStringLiteral("web_search"));
     QCOMPARE(route->type, QStringLiteral("url"));
     QCOMPARE(route->args.value(0),
-             QStringLiteral("https://duckduckgo.com/?q=C%2B%2B20%20concepts"));
+             QStringLiteral("https://google.com/?q=C%2B%2B20%20concepts"));
     QCOMPARE(route->label, QStringLiteral("Search"));
     QCOMPARE(route->detail, QStringLiteral("C++20 concepts"));
     QVERIFY(!route->confirm);
@@ -48,8 +48,11 @@ void TestRouter::youtubeSearch()
     const auto route = m_router.route(QStringLiteral("youtube lofi beats"), false);
     QVERIFY(route.has_value());
     QCOMPARE(route->ruleName, QStringLiteral("youtube_search"));
-    QCOMPARE(route->args.value(0),
-             QStringLiteral("https://www.youtube.com/results?search_query=lofi%20beats"));
+    QCOMPARE(route->type, QStringLiteral("exec"));
+    QCOMPARE(route->program, QStringLiteral("brave-origin"));
+    // exec rules pass the URL as one argv element; only url rules encode slots.
+    QCOMPARE(route->args, (QStringList{QStringLiteral("--profile-directory=Default"),
+                                       QStringLiteral("https://www.youtube.com/results?search_query=lofi beats")}));
 
     const auto alternate = m_router.route(QStringLiteral("play lofi beats on youtube"), false);
     QVERIFY(alternate.has_value());
@@ -109,7 +112,7 @@ void TestRouter::browserResolution()
     QCOMPARE(route->program, QStringLiteral("firefox"));
     QCOMPARE(route->args.value(0), QStringLiteral("--new-window"));
     QCOMPARE(route->args.value(1),
-             QStringLiteral("https://duckduckgo.com/?q=hyprland"));
+             QStringLiteral("https://google.com/?q=hyprland"));
 
     if (previous.isEmpty())
         qunsetenv("BROWSER");

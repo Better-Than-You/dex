@@ -102,7 +102,7 @@ void TestEngine::matchedAction()
     QCOMPARE(outcome.route.ruleName, QStringLiteral("web_search"));
     QCOMPARE(outcome.route.confirm, false);
     QCOMPARE(outcome.route.args.value(0),
-             QStringLiteral("https://duckduckgo.com/?q=hyprland%20layer%20shell"));
+             QStringLiteral("https://google.com/?q=hyprland%20layer%20shell"));
 }
 
 void TestEngine::confirmationGate()
