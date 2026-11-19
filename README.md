@@ -17,6 +17,67 @@ handled deterministically; the small local SLM is only paged in for an
 unmatched maths/calculus utterance, and every SLM failure falls back to the
 deterministic parser.
 
+## Architecture
+
+The QML shell is a thin view over a C++20 core; everything below it is
+unit-testable without a microphone, display server or model bundle.
+
+```mermaid
+flowchart TD
+    mic[Microphone · 16 kHz mono] --> ring[SPSC ring buffer]
+    ring --> vad[Silero VAD]
+    vad --> asr[Parakeet offline decode · dex-asr thread]
+    asr --> engine[CommandEngine]
+    ipc[IPC FINAL / stub injection] --> engine
+    engine --> router{RuleRouter match?}
+    router -->|yes| action[ActionDispatcher]
+    router -->|no| gate{Maths gate}
+    gate -->|no| none[Outcome::None]
+    gate -->|yes| slm{SLM available?}
+    slm -->|yes| json[GBNF JSON · eval / diff]
+    slm -->|no| det[Deterministic parser]
+    json --> det
+    det --> ui[M3 overlay · wl-copy]
+    action --> ui
+```
+
+| Layer | Modules | Thread | Responsibility |
+| --- | --- | --- | --- |
+| Capture | `AudioCapture`, `SpscRingBuffer` | GUI | 16 kHz mono samples, RMS level, lock-free handoff |
+| ASR | `SherpaWorker`, `SherpaTranscriptProvider`, `ModelLayout` | `dex-asr` | VAD, pre-roll, single-shot Parakeet decode |
+| Engine | `TextNormalizer`, `RuleRouter`, `MathEvaluator`, `SymbolicDifferentiator`, `LlamaMathTranslator`, `CommandEngine` | calling thread | Routing, maths, calculus, optional SLM |
+| Core | `Config`, `AppController`, `IpcServer`, `ActionDispatcher` | GUI | State machine, socket control, command execution |
+| UI | `Main.qml`, `Theme.qml`, `components/` | GUI | M3 pill, confirmation card, maths result card |
+
+Design invariants:
+
+- Desktop rules always run first on a 0 ms regex path; they never wake the SLM.
+- `ITranscriptProvider` is the only upstream contract, so stub and Parakeet are
+  interchangeable.
+- sherpa-onnx objects stay on `dex-asr`; the audio producer never blocks (drops
+  are counted when inference stalls).
+- Every SLM failure — no build support, missing GGUF, bad JSON, unusable
+  expression — falls back to the deterministic parser.
+
+## Metrics
+
+Measured on the development build (2026-11-20); CI prints the same source and
+test counts on every run via `scripts/project-metrics.sh`.
+
+| Area | Metric | Value |
+| --- | --- | --- |
+| Code | C++ / QML sources | 33 C++ files · 5 QML files |
+| Code | Lines of code | 5,044 C++ (core 1,043 · engine 2,699 · provider 1,302) · 663 QML |
+| Tests | Suites / checks | 9 suites · 94 passing checks (with GGUF); 4 SLM rows skip without it |
+| Tests | Test code | 1,353 lines across 9 QtTest suites |
+| Artifacts | Binaries | `dex` ≈ 2.6 MB · `libdex_core.a` ≈ 3.0 MB (Release, llama.cpp enabled) |
+| Audio | Sample rate / ring buffer | 16 kHz mono float · 65,536 samples ≈ 4.1 s |
+| ASR | Worker tick / pre-roll | 30 ms · ~600 ms pre-roll |
+| ASR | Zero-padding buckets | 32k / 64k / 128k / 240k samples (2 / 4 / 8 / 15 s) |
+| Engine | Router path | 0 ms — `QRegularExpression` only |
+| SLM | Cold start / idle unload | ~0.3–1.5 s (316 ms measured) · 60 s default |
+| Models | Parakeet / SLM | TDT 0.6B v2 INT8 · Qwen3.5 0.8B Q4_K_M (~510 MB) |
+
 ## Requirements
 
 - C++20 compiler, CMake ≥ 3.21, Ninja
@@ -74,7 +135,27 @@ ctest --test-dir build --output-on-failure -LE live
 ```
 
 `tst_live_input` (label `live`) drives the real microphone; run it directly:
-`./build/tests/tst_live_input`.
+`./build/tests/tst_live_input`. The GitHub Actions `CI` workflow runs the same
+eight non-live suites on every push and pull request to `main` and `showcase`,
+plus a version-metadata check and, on `showcase`, a project-only policy check.
+
+## Versioning & releases
+
+Versions follow SemVer. `VERSION` is the single source of truth: CMake reads it
+for the project version and `dex --version`, while CI verifies that
+`CHANGELOG.md` has a matching section with `scripts/version.sh`.
+
+```sh
+bash scripts/version.sh                 # validate and print the version
+bash scripts/project-metrics.sh         # reproducible source/test metrics
+bash scripts/bump-version.sh 1.2.3      # bump VERSION + start a CHANGELOG section
+```
+
+Pushing a `v*` tag (for example `v1.0.0`) runs the `Release` workflow: it
+verifies the tag against `VERSION`, rebuilds, runs the full non-live test suite
+and publishes the GitHub release. See `docs/RELEASING.md` for the full process.
+Both `main` and `showcase` are protected branches: changes arrive through pull
+requests that pass `build-and-test`.
 
 ## Run
 
