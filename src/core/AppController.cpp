@@ -413,6 +413,25 @@ void AppController::cancelAction()
         QCoreApplication::quit();
 }
 
+void AppController::copyResult()
+{
+    if (m_resultText.isEmpty())
+        return;
+
+    QString error;
+    const bool copied = ActionDispatcher::copyToClipboard(m_resultText, &error);
+    if (m_resultCopied != copied) {
+        m_resultCopied = copied;
+        emit resultCopiedChanged();
+    }
+
+    const QString nextError = copied ? QString() : error;
+    if (m_errorText != nextError) {
+        m_errorText = nextError;
+        emit statusChanged();
+    }
+}
+
 void AppController::quit()
 {
     clearAutoHide();

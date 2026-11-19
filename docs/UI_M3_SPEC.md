@@ -9,6 +9,23 @@ Configure `LayerShellQt::Window::get(window)` on the root `QQuickWindow`:
   - `KeyboardInteractivityNone` during passive listening / status feedback (never steals focus).
   - Dynamically switch to `KeyboardInteractivityOnDemand` when `state == State.Confirming` so `Enter` confirms and `Esc` cancels.
 
+### Hyprland layer rules
+
+Dex's layer-shell window uses the scope `dex`. Hyprland composites blur and
+shadows behind layer surfaces by default; for a rounded pill that produces a
+rectangular blur/shadow halo outside the corners. Add this to
+`~/.config/hypr/hyprland.conf` (or a sourced config) and reload Hyprland:
+
+```ini
+layerrule = noblur, dex
+layerrule = noshadow, dex
+layerrule = noanim, dex
+```
+
+The `dex` scope must match `layer->setScope("dex")` in `src/main.cpp`. The rules
+remove only the compositor's outer rectangle; the Material 3 card keeps its own
+surface colour and outline.
+
 ## 2. Material Design 3 Tokens (`qml/Theme.qml`)
 `pragma Singleton` `QtObject` with dark M3 tonal palette (compatible with Caelestia dark surfaces):
 - `surfaceContainerHigh`: `"#1E1F25"`

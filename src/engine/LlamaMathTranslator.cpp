@@ -71,8 +71,32 @@ Output: {"mode":"eval","expr":"sigmoid(ln(2))"}
 Input: softness function for the vector one, zero point one comma minus three
 Output: {"mode":"eval","expr":"softmax([1, 0.1, -3])"}
 
+Input: softmax of one two and three
+Output: {"mode":"eval","expr":"softmax([1, 2, 3])"}
+
+Input: evaluate relu of minus three point five
+Output: {"mode":"eval","expr":"relu(-3.5)"}
+
+Input: ray loo of minus three point five plus e power two
+Output: {"mode":"eval","expr":"relu(-3.5)+exp(2)"}
+
+Input: absolute value of log base ten of hundred minus square root of sixteen
+Output: {"mode":"eval","expr":"abs(log(100)-sqrt(16))"}
+
+Input: binary cross entropy of y and y_hat
+Output: {"mode":"eval","expr":"-(y*ln(y_hat)+(1-y)*ln(1-y_hat))"}
+
 Input: half into y hat minus y whole square in respect to y hat
 Output: {"mode":"diff","expr":"0.5*(y_hat-y)^2","var":"y_hat"}
+
+Input: derivative of sigmoid of x with respect to x
+Output: {"mode":"diff","expr":"sigmoid(x)","var":"x"}
+
+Input: derivative of sigmoid of w x plus b with respect to x
+Output: {"mode":"diff","expr":"sigmoid(w*x+b)","var":"x"}
+
+Input: differentiate sine x into cosine x wrt x
+Output: {"mode":"diff","expr":"sin(x)*cos(x)","var":"x"}
 
 Input: minus. is zero point eight
 Output: {"mode":"eval","expr":"-0.8"}

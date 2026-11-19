@@ -105,6 +105,7 @@ public slots:
     Q_INVOKABLE void submitUtterance(const QString &text);
     Q_INVOKABLE void confirmAction();
     Q_INVOKABLE void cancelAction();
+    Q_INVOKABLE void copyResult();
     Q_INVOKABLE void quit();
 
 signals:

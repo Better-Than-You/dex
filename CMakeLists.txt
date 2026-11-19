@@ -90,6 +90,7 @@ qt_add_qml_module(dex
         qml/components/StatusPill.qml
         qml/components/MathResultCard.qml
         qml/components/ConfirmBar.qml
+        qml/components/M3Button.qml
     SOURCES
         src/core/AppController.hpp
         src/core/AppController.cpp

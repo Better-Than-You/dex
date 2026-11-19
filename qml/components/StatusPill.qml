@@ -12,8 +12,8 @@ Item {
     property string detail: ""
     property real level: 0.0
 
-    implicitWidth: row.implicitWidth + Theme.spacingXl
-    implicitHeight: row.implicitHeight + Theme.spacingL
+    implicitWidth: row.implicitWidth + Theme.spacingM * 2
+    implicitHeight: row.implicitHeight + Theme.spacingM * 2
 
     RowLayout {
         id: row
@@ -104,24 +104,33 @@ Item {
 
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
             spacing: 2
 
             Text {
                 Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
                 text: root.title
                 color: Theme.contentSurface
+                font.family: Theme.fontSans
                 font.pixelSize: Theme.fontTitle
                 font.weight: Font.DemiBold
+                verticalAlignment: Text.AlignVCenter
+                renderType: Text.NativeRendering
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }
 
             Text {
                 Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
                 visible: root.detail.length > 0
                 text: root.detail
                 color: Theme.contentSurfaceVariant
+                font.family: Theme.fontSans
                 font.pixelSize: Theme.fontBody
+                verticalAlignment: Text.AlignVCenter
+                renderType: Text.NativeRendering
                 elide: Text.ElideRight
                 maximumLineCount: 1
             }

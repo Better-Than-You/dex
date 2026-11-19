@@ -100,6 +100,22 @@ Useful flags:
 When no config is found in `~/.config/dex/`, the development copy in `config/`
 is used automatically.
 
+### Hyprland layer rules
+
+Dex sets its layer-shell scope to `dex`. Disable compositor blur, shadows and
+layer animations for that scope so Hyprland does not draw a rectangular
+blur/shadow/animating surface behind the pill's rounded corners:
+
+```ini
+layerrule = noblur, dex
+layerrule = noshadow, dex
+layerrule = noanim, dex
+```
+
+Add those lines to `~/.config/hypr/hyprland.conf` (or a sourced config) and
+reload Hyprland. The rounded pill itself keeps its Material 3 surface; only the
+compositor's outer blur/shadow rectangle is removed.
+
 ## Control socket
 
 Newline-delimited commands on `$XDG_RUNTIME_DIR/dex.sock`:

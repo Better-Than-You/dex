@@ -1,20 +1,23 @@
 [[commands]]
 name = "web_search"
 patterns = [
-    "^search (?:for )?(?<query>.+)$",
-    "^google (?<query>.+)$",
-    "^look up (?<query>.+)$"
+  "^search (?:for )?(?<query>.+)$",
+  "^google (?<query>.+)$",
+  "^look up (?<query>.+)$",
 ]
 type = "url"
 exec = "$BROWSER"
-args = ["https://duckduckgo.com/?q=%{query}"]
+args = ["https://google.com/?q=%{query}"]
 
 [[commands]]
 name = "youtube_search"
 patterns = ["^youtube (?<query>.+)$", "^play (?<query>.+) on youtube$"]
-type = "url"
-exec = "$BROWSER"
-args = ["https://www.youtube.com/results?search_query=%{query}"]
+type = "exec"
+exec = "brave-origin"
+args = [
+  "--profile-directory=Default",
+  "https://www.youtube.com/results?search_query=%{query}",
+]
 
 [[commands]]
 name = "launch_app"

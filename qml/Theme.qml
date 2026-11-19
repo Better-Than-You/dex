@@ -59,6 +59,12 @@ QtObject {
     readonly property int fontTitle: 16
     readonly property int fontBody: 14
     readonly property int fontLabel: 12
+    readonly property int fontIcon: 18
+
+    // Type families
+    readonly property string fontSans: "Rubik"
+    readonly property string fontMono: "Cascadia Code Nerd"
+    readonly property string fontIconFamily: "Material Symbols Rounded"
 
     // Motion
     readonly property int durationFast: 120
