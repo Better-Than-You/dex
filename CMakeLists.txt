@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(Dex VERSION 1.0.0 LANGUAGES CXX)
+# VERSION is the single source of truth for application releases. The QML
+# module version below is an API version and is intentionally independent.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" DEX_VERSION_RAW)
+string(STRIP "${DEX_VERSION_RAW}" DEX_VERSION)
+
+project(Dex VERSION "${DEX_VERSION}" LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -110,6 +115,7 @@ target_include_directories(dex PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/core)
 
 target_compile_definitions(dex PRIVATE
     DEX_SOURCE_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config"
+    DEX_VERSION="${PROJECT_VERSION}"
 )
 
 install(TARGETS dex RUNTIME DESTINATION bin)

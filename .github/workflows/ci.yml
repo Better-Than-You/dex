@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, showcase]
+  pull_request:
+    branches: [main, showcase]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build-and-test
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate version metadata
+        shell: bash
+        run: bash scripts/version.sh
+
+      - name: Enforce showcase policy
+        if: github.ref == 'refs/heads/showcase' || github.base_ref == 'showcase'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in AGENTS.md opencode.json .opencode .agent; do
+            if [[ -e "$path" ]]; then
+              echo "::error::AI tooling path is not allowed on showcase: $path"
+              exit 1
+            fi
+          done
+          echo "Showcase policy OK: project files and documentation only."
+
+      - name: Build and test
+        uses: ./.github/actions/dex-build
+
+      - name: Publish project metrics
+        shell: bash
+        run: |
+          {
+            echo '### Project metrics'
+            echo '```'
+            bash scripts/project-metrics.sh
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

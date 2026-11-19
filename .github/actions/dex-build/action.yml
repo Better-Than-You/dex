@@ -1,0 +1,50 @@
+name: Build and test Dex
+description: Install dependencies, configure, build and run Dex's non-live test suites
+
+runs:
+  using: composite
+  steps:
+    - name: Install build dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        pacman -Syu --noconfirm --needed \
+          cmake ninja git curl bzip2 \
+          qt6-base qt6-declarative qt6-multimedia \
+          layer-shell-qt tomlplusplus
+
+    - name: Install sherpa-onnx C API
+      shell: bash
+      run: |
+        set -euo pipefail
+        version=2.0.2
+        curl -fsSL -o /tmp/sherpa.tar.bz2 \
+          "https://github.com/k2-fsa/sherpa-onnx/releases/download/v${version}/sherpa-onnx-v${version}-linux-x64-shared-lib.tar.bz2"
+        tar -xjf /tmp/sherpa.tar.bz2 -C /tmp
+        prefix="/tmp/sherpa-onnx-v${version}-linux-x64-shared-lib"
+        install -Dm644 "$prefix/lib/libsherpa-onnx-c-api.so" /usr/local/lib/libsherpa-onnx-c-api.so
+        install -Dm644 "$prefix/lib/libonnxruntime.so" /usr/local/lib/libonnxruntime.so
+        mkdir -p /usr/local/include/sherpa-onnx/c-api
+        curl -fsSL -o /usr/local/include/sherpa-onnx/c-api/c-api.h \
+          "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v${version}/sherpa-onnx/c-api/c-api.h"
+        ldconfig
+
+    # The maths SLM is optional; skipping it also keeps CI independent of the
+    # 510 MB GGUF and the ggml runtime libraries.
+    - name: Configure
+      shell: bash
+      run: |
+        cmake -S . -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_TESTING=ON \
+          -DCMAKE_DISABLE_FIND_PACKAGE_LlamaCpp=ON
+
+    - name: Build
+      shell: bash
+      run: cmake --build build --parallel 2
+
+    - name: Test
+      shell: bash
+      run: |
+        export QT_QPA_PLATFORM=offscreen
+        ctest --test-dir build --output-on-failure -LE live

@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     QCoreApplication::setOrganizationName(QStringLiteral("Dex"));
     QCoreApplication::setApplicationName(QStringLiteral("dex"));
-    QCoreApplication::setApplicationVersion(QStringLiteral("1.0.0"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(DEX_VERSION));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(
