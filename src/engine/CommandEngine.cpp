@@ -59,10 +59,21 @@ CommandEngine::Outcome CommandEngine::process(const QString &rawText) const
     if (m_translator && m_translator->available()) {
         QString error;
         if (const auto command = m_translator->translate(rawText, &error)) {
-            outcome.slmMode = command->mode;
+            // A derivative marker ("... in respect to x") is detected
+            // deterministically before the SLM runs. Small models sometimes
+            // tag such an utterance as "eval" because most few-shot examples
+            // are evaluations, so the marker wins and supplies the variable.
+            const bool slmEval = command->mode == QStringLiteral("eval");
+            const bool slmDiff = command->mode == QStringLiteral("diff");
+            const bool asDerivative = derivativeRequest.has_value() || slmDiff;
+            const QString mode = asDerivative ? QStringLiteral("diff") : command->mode;
+            const QString variable =
+                derivativeRequest ? derivativeRequest->variable : command->var;
+
+            outcome.slmMode = mode;
             outcome.slmExpression = command->expr;
 
-            if (command->mode == QStringLiteral("eval")) {
+            if (slmEval && !asDerivative) {
                 if (const auto value = MathEvaluator::evaluate(command->expr)) {
                     outcome.kind = OutcomeKind::Math;
                     outcome.usedSlm = true;
@@ -70,12 +81,12 @@ CommandEngine::Outcome CommandEngine::process(const QString &rawText) const
                     outcome.result = value->format();
                     return outcome;
                 }
-            } else if (command->mode == QStringLiteral("diff")) {
+            } else if (asDerivative) {
                 if (const auto derivative =
-                        SymbolicDifferentiator::differentiate(command->expr, command->var)) {
+                        SymbolicDifferentiator::differentiate(command->expr, variable)) {
                     outcome.kind = OutcomeKind::Math;
                     outcome.usedSlm = true;
-                    outcome.expression = derivativeDisplay(command->var, command->expr);
+                    outcome.expression = derivativeDisplay(variable, command->expr);
                     outcome.result = *derivative;
                     return outcome;
                 }
